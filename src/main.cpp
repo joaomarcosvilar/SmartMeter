@@ -1,20 +1,32 @@
 #include <Arduino.h>
+#include <ZTMPT101b.h>
+#include <SCT013.h>
+#include <Adafruit_ADS1X15.h>
+#include "freertos/task.h"
+#include "freertos/FreeRTOS.h"
+#include <RTOS.h>
 
-#include "EmonLib.h"
-// Include Emon Library
-EnergyMonitor emon1;
-// Create an instance
+Adafruit_ADS1115 ads;
+ZTMPT101b sensorV;
+
 void setup()
 {
   Serial.begin(9600);
-
-  emon1.current(12, 1);             // Current: input pin, calibration.
+  Serial.println("Getting single-ended readings from AIN0..3");
+  if (!ads.begin())
+  {
+    Serial.println("Failed to initialize ADS.");
+    while (1)
+      ;
+  }
 }
-
+unsigned long start = 0, current;
 void loop()
 {
-double Irms = emon1.calcIrms(1480);  // Calculate Irms only
-Serial.print(Irms*230.0);	       // Apparent power
-  Serial.print(" ");
-  Serial.println(Irms);		       // Irms
+  current = millis();
+  if ((current - start) >= 300)
+  {
+    sensorV.readVRMS(ads.computeVolts(ads.readADC_SingleEnded(3)));
+    start = current;
+  }
 }

@@ -10,7 +10,11 @@
             "includePath": [
                 "c:/Users/PC/Downloads/Projets/SmartMeter/include",
                 "c:/Users/PC/Downloads/Projets/SmartMeter/src",
-                "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/EmonLib",
+                "c:/Users/PC/Downloads/Projets/SmartMeter/lib/ZTMPT101b",
+                "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/Adafruit ADS1X15",
+                "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/Adafruit BusIO",
+                "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/SPI/src",
+                "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/Wire/src",
                 "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/newlib/platform_include",
                 "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/freertos/include",
                 "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/freertos/include/esp_additions/freertos",
@@ -229,7 +233,6 @@
                 "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/RainMaker/src",
                 "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/SD/src",
                 "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/SD_MMC/src",
-                "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/SPI/src",
                 "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/SPIFFS/src",
                 "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/SimpleBLE/src",
                 "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/Ticker/src",
@@ -239,7 +242,6 @@
                 "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
                 "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src",
                 "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/WiFiProv/src",
-                "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/Wire/src",
                 ""
             ],
             "browse": {
@@ -247,7 +249,11 @@
                 "path": [
                     "c:/Users/PC/Downloads/Projets/SmartMeter/include",
                     "c:/Users/PC/Downloads/Projets/SmartMeter/src",
-                    "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/EmonLib",
+                    "c:/Users/PC/Downloads/Projets/SmartMeter/lib/ZTMPT101b",
+                    "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/Adafruit ADS1X15",
+                    "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/Adafruit BusIO",
+                    "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/SPI/src",
+                    "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/Wire/src",
                     "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/newlib/platform_include",
                     "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/freertos/include",
                     "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/freertos/include/esp_additions/freertos",
@@ -466,7 +472,6 @@
                     "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/RainMaker/src",
                     "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/SD/src",
                     "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/SD_MMC/src",
-                    "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/SPI/src",
                     "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/SPIFFS/src",
                     "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/SimpleBLE/src",
                     "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/Ticker/src",
@@ -476,7 +481,6 @@
                     "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
                     "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src",
                     "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/WiFiProv/src",
-                    "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/Wire/src",
                     ""
                 ]
             },
