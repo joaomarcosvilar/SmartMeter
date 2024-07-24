@@ -24,7 +24,7 @@ unsigned long start = 0, current;
 void loop()
 {
   current = millis();
-  if ((current - start) >= 300)
+  if ((current - start) >= 150)
   {
     sensorV.readVRMS(ads.computeVolts(ads.readADC_SingleEnded(3)));
     start = current;

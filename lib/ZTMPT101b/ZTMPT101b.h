@@ -5,7 +5,7 @@
 class ZTMPT101b
 {
 public:
-    float readVRMS(float adcVSingleEnd);
+    float readVRMS(int16_t adcVSingleEnd);
 
 private:
     float voltageSampleRead = 0;  /* to read the value of a sample*/
