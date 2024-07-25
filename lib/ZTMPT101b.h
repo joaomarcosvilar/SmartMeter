@@ -45,32 +45,26 @@ void ZTMPT101b::readVinst(int adcPin)
 
 void ZTMPT101b::readFreq(int adcPin)
 {
-    adcV_last = ((ads->computeVolts(ads->readADC_SingleEnded(adcPin))) - V_sensorOffset) / V_coefLinear;
+    while(contt < 2)
+    {adcV_last = ((ads->computeVolts(ads->readADC_SingleEnded(adcPin))) - V_sensorOffset) / V_coefLinear;
     delay(1); //trocar
 
     V_inst = ((ads->computeVolts(ads->readADC_SingleEnded(adcPin))) - V_sensorOffset) / V_coefLinear;
     lastVCross = checkVCross;
-    if (V_inst > adcV_last)
+    if ((V_inst > adcV_last)&&(!checkVCross))
     {
+        if(contt==0) {Star = micros();}
         checkVCross = true;
-        contt++;
+        contt++; 
     }
-    else
+    else if((V_inst < adcV_last)&&(checkVCross))
     {
         checkVCross = false;
     }
-    if (checkVCross)
-    {
-        Star = micros();
     }
-    Serial.println(contt);
-    if (contt == 2)
-    {
-        Serial.print("--");
-        Curr = micros();
-        Serial.println(Curr - Star);
-        contt = 0;
-    }
+    Serial.println(micros() - Star);
+    contt = 0;
+    
 }
 
 #endif
