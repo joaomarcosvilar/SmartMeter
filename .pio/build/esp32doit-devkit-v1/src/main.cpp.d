@@ -133,9 +133,9 @@
  C:/Users/PC/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/esp_hw_support/include/soc/esp32/spiram.h \
  C:/Users/PC/.platformio/packages/framework-arduinoespressif32/cores/esp32/io_pin_remap.h \
  C:/Users/PC/.platformio/packages/framework-arduinoespressif32/cores/esp32/Arduino.h \
- lib/ZTMPT101b/ZTMPT101b.h include/SCT013.h \
  .pio/libdeps/esp32doit-devkit-v1/Adafruit\ ADS1X15/Adafruit_ADS1X15.h \
  .pio/libdeps/esp32doit-devkit-v1/Adafruit\ BusIO/Adafruit_I2CDevice.h \
  C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/Wire/src/Wire.h \
  C:/Users/PC/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal.h \
- include/RTOS.h
+ .pio/libdeps/esp32doit-devkit-v1/LoRaMESH/LoRaMESH.h \
+ src/../lib/ZTMPT101b.h
