@@ -10,16 +10,19 @@ public:
     void readFreq(int adcPin);
 
 private:
+    // Setup
     Adafruit_ADS1115 *ads;
+
+    // Leitura
     float V_inst;
     float V_sensorOffset = 2.5;     // Tensão lida do sensor quando não conectado na energia
     float V_coefLinear = 0.0026937; // Coeficiente linear proporcional
+    
+
+    // Freq
     float adcVSingleEnd, adcV_last;
     unsigned long Star = 0, Curr;
     float start, current;
-    int16_t rawADC;
-
-
     int contt = 0, contt2 = 0;
     float freq = 0;
     bool checkVCross, lastVCross;
@@ -34,8 +37,7 @@ ZTMPT101b::ZTMPT101b(Adafruit_ADS1115 *ads)
 
 void ZTMPT101b::readVinst(int adcPin)
 {
-    rawADC = ads->readADC_SingleEnded(adcPin);
-    adcVSingleEnd = (ads->computeVolts(rawADC));
+    adcVSingleEnd = (ads->computeVolts(ads->readADC_SingleEnded(adcPin)));
     V_inst = (adcVSingleEnd - V_sensorOffset) / V_coefLinear;
     Serial.print(">V_inst:");
     Serial.println((V_inst));

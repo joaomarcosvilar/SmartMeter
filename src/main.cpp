@@ -3,16 +3,18 @@
 #include <LoRaMESH.h>
 
 #include "../lib/ZTMPT101b.h"
+#include "../lib/SCT013.h"
 
 #include "freertos/task.h"
 #include "freertos/FreeRTOS.h"
 
 Adafruit_ADS1115 ads;
 ZTMPT101b sensorV(&ads);
+SCT013 sensorI(&ads);
 
 void setup()
 {
-  Serial.begin(921600);
+  Serial.begin(115200);
 
   if (!ads.begin())
   {
@@ -34,8 +36,9 @@ void loop()
   if ((current - start) >= 16)
   {
     // ads.computeVolts(ads.readADC_SingleEnded(3))
-    // sensorV.readVinst(3);
-    sensorV.readFreq(3);
+    sensorV.readVinst(3);
+    //sensorV.readFreq(3);
+    sensorI.readIinst(2);
     // Serial.print(">adcVSingleEnd:");
     // Serial.println(ads.computeVolts(ads.readADC_SingleEnded(3)));
     start = current;

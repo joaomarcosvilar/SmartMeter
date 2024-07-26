@@ -138,4 +138,4 @@
  C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/Wire/src/Wire.h \
  C:/Users/PC/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal.h \
  .pio/libdeps/esp32doit-devkit-v1/LoRaMESH/LoRaMESH.h \
- src/../lib/ZTMPT101b.h
+ src/../lib/ZTMPT101b.h src/../lib/SCT013.h
