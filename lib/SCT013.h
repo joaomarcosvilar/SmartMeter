@@ -40,46 +40,46 @@ void SCT013::readIinst(int adcPin)
 
 void SCT013::readIFreq(int adcPin)
 {
-    while (contt2 <= 10)
-    {
-        adcV_last = ((ads->computeVolts(ads->readADC_SingleEnded(adcPin))) - V_sensorOffset) / V_coefLinear;
-        Serial.print(">adcV_last:");
-        Serial.println((adcV_last));
-        while (contt < 2)
-        {
-            current = (millis());
-            if ((current - start) >= 16)
-            {
-                V_inst = ((ads->computeVolts(ads->readADC_SingleEnded(adcPin))) - V_sensorOffset) / V_coefLinear;
-                Serial.print(">V_inst:");
-                Serial.println((V_inst));
-                if ((V_inst > adcV_last) && (!checkVCross))
-                {
-                    if (contt == 0)
-                    {
-                        Star = micros();
-                    }
-                    checkVCross = true;
-                    contt++;
-                }
-                else if ((V_inst < adcV_last) && (checkVCross))
-                {
-                    checkVCross = false;
-                }
-                Serial.print(">checkVCross:");
-                Serial.println((checkVCross) * 300);
-                start = current;
-            }
-        }
-        freq += (1000000.0 / static_cast<float>(micros() - Star));
-        Serial.println(((1000000.0 / static_cast<float>(micros() - Star))));
-        contt = 0;
-        contt2++;
-    }
-    Serial.print(">freq:");
-    Serial.println((freq / contt2));
-    freq = 0;
-    contt2 = 0;
+    // while (contt2 <= 10)
+    // {
+    //     adcV_last = ((ads->computeVolts(ads->readADC_SingleEnded(adcPin))) - V_sensorOffset) / V_coefLinear;
+    //     Serial.print(">adcV_last:");
+    //     Serial.println((adcV_last));
+    //     while (contt < 2)
+    //     {
+    //         current = (millis());
+    //         if ((current - start) >= 16)
+    //         {
+    //             V_inst = ((ads->computeVolts(ads->readADC_SingleEnded(adcPin))) - V_sensorOffset) / V_coefLinear;
+    //             Serial.print(">V_inst:");
+    //             Serial.println((V_inst));
+    //             if ((V_inst > adcV_last) && (!checkVCross))
+    //             {
+    //                 if (contt == 0)
+    //                 {
+    //                     Star = micros();
+    //                 }
+    //                 checkVCross = true;
+    //                 contt++;
+    //             }
+    //             else if ((V_inst < adcV_last) && (checkVCross))
+    //             {
+    //                 checkVCross = false;
+    //             }
+    //             Serial.print(">checkVCross:");
+    //             Serial.println((checkVCross) * 300);
+    //             start = current;
+    //         }
+    //     }
+    //     freq += (1000000.0 / static_cast<float>(micros() - Star));
+    //     Serial.println(((1000000.0 / static_cast<float>(micros() - Star))));
+    //     contt = 0;
+    //     contt2++;
+    // }
+    // Serial.print(">freq:");
+    // Serial.println((freq / contt2));
+    // freq = 0;
+    // contt2 = 0;
     
 }
 #endif

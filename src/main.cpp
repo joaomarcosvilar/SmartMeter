@@ -38,7 +38,7 @@ void loop()
     // ads.computeVolts(ads.readADC_SingleEnded(3))
     sensorV.readVinst(3);
     //sensorV.readFreq(3);
-    sensorI.readIinst(2);
+    //sensorI.readIinst(2);
     // Serial.print(">adcVSingleEnd:");
     // Serial.println(ads.computeVolts(ads.readADC_SingleEnded(3)));
     start = current;
