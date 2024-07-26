@@ -7,35 +7,28 @@
 #include "freertos/task.h"
 #include "freertos/FreeRTOS.h"
 
+#define pinALRT 23
+
 Adafruit_ADS1115 ads;
-ZTMPT101b sensorV(&ads);
+ZTMPT101b sensorV(&ads, 220, pinALRT);
 
 void setup()
 {
-  Serial.begin(921600);
-
-  if (!ads.begin())
-  {
-    Serial.println("Failed to initialize ADS.");
-    while (1)
-      ;
-  }
-  else
-  {
-    Serial.println("ADS inicializado...");
-  }
+  Serial.begin(115200);
+  sensorV.begin();
+  sensorV.startContinuousReading(0);
 }
 
 unsigned long start = 0, current;
 
 void loop()
 {
-  current = micros();
-  if ((current - start) >= 16)
+  current = static_cast<float>(millis());
+  if ((current - start) >= 1000)
   {
     // ads.computeVolts(ads.readADC_SingleEnded(3))
     // sensorV.readVinst(3);
-    sensorV.readFreq(3);
+    //sensorV.readFreq(3);
     // Serial.print(">adcVSingleEnd:");
     // Serial.println(ads.computeVolts(ads.readADC_SingleEnded(3)));
     start = current;
