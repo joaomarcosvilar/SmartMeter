@@ -23,14 +23,14 @@ unsigned long start = 0, current;
 
 void loop()
 {
-  current = static_cast<float>(millis());
-  if ((current - start) >= 1000)
-  {
-    // ads.computeVolts(ads.readADC_SingleEnded(3))
-    // sensorV.readVinst(3);
-    //sensorV.readFreq(3);
-    // Serial.print(">adcVSingleEnd:");
-    // Serial.println(ads.computeVolts(ads.readADC_SingleEnded(3)));
-    start = current;
-  }
+  // current = static_cast<float>(millis());
+  // if ((current - start) >= (1 / 60))
+  // {
+  //   // ads.computeVolts(ads.readADC_SingleEnded(3))
+  //   // sensorV.readVinst(3);
+  //   sensorV.readFreq(3);
+  //   // Serial.print(">adcVSingleEnd:");
+  //   // Serial.println(ads.computeVolts(ads.readADC_SingleEnded(3)));
+  //   start = current;
+  // }
 }
