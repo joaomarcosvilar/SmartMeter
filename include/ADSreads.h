@@ -13,10 +13,13 @@ public:
     void begin();
     void readFreq(int channel);
     void readInst(int channel);
+    void readRMS(int channel);
+    void calibration(int channel);
 
 private:
     int READY_PIN;                           // Pino ALRT do ADS1115
     uint16_t dataRate = RATE_ADS1115_860SPS; // 860 amostras por segundo
+    int samples = 860;
 
     volatile bool newData = false;
     void IRAM_ATTR onNewDataReady(); // Função de Interrupção do pino ALRT
@@ -28,13 +31,17 @@ private:
     int lastChannel = -1; // Inicialize como um valor inválido
 
     float previousVoltage;
-    int zeroCrossings;
+    int zeroCrossings, contt = 0;
     unsigned long currentTime, startTime = 0;
+
+    float voltage, frequency, samplesRMS[860]; // Modificar o samplesRMS para config do ADS, 860 <- RATE_ADS1115_860SPS
+    int index = 0;
+    bool calibrate[4] = {false, false, false, false};
+    float offSet[4], coefLinear[4], voltMax = 0.0, voltMin = 5.0, sumRMS = 0, RMS;
 };
 
 #endif
 
-// Inicialize o ponteiro estático
 ADSreads *ADSreads::instance = nullptr;
 
 ADSreads::ADSreads(int READY_PIN)
@@ -105,46 +112,100 @@ void ADSreads::setChannel(int channel)
 void ADSreads::readFreq(int channel)
 {
     setChannel(channel);
-
-    if (!newData)
+    if (!calibrate[channel])
     {
-        return;
+        calibration(channel);
+    }
+    zeroCrossings = 0;
+    index = 0;
+    unsigned long startMillis = millis();
+
+    while (index < (samples + 1))
+    {
+        readInst(channel);
+        if ((previousVoltage > offSet[channel] && voltage <= offSet[channel]) || (previousVoltage < offSet[channel] && voltage >= offSet[channel]))
+        {
+            zeroCrossings++;
+        }
+        previousVoltage = voltage;
+        index++;
     }
 
-    float voltage = ads.computeVolts(ads.getLastConversionResults());
-
-    if ((previousVoltage > 2.5 && voltage <= 2.5) || (previousVoltage < 2.5 && voltage >= 2.5))
-    {
-        zeroCrossings++;
-    }
-
-    previousVoltage = voltage;
-
-    currentTime = millis();
-    if (currentTime - startTime >= 1000)
-    {
-        float frequency = (zeroCrossings / 2.0) / ((currentTime - startTime) / 1000.0);
-        Serial.print(">Frequency");
-        Serial.print(channel);
-        Serial.print(" :");
-        Serial.println(frequency);
-
-        zeroCrossings = 0;
-        startTime = currentTime;
-    }
+    frequency = (zeroCrossings / 2.0) / ((millis() - startMillis) / 1000.0); // fazer tratamento para quando for desligado
+    Serial.print(">Frequency");
+    Serial.print(channel);
+    Serial.print(" :");
+    Serial.println(frequency);
 }
 
 void ADSreads::readInst(int channel)
 {
     setChannel(channel);
-
-    if (!newData)
+    while (1)
     {
-        return;
+        if (newData)
+        {
+            break;
+        }
     }
-
-    float voltage = ads.computeVolts(ads.getLastConversionResults());
+    voltage = ads.computeVolts(ads.getLastConversionResults());
     Serial.print(">Vinst:");
     Serial.println(voltage);
     newData = false;
+}
+
+// Aquisição de várias amostras do sinal, cálculo do quadrado de cada amostra,
+// média desses valores quadrados e, finalmente, extração da raiz quadrada da média.
+void ADSreads::readRMS(int channel)
+{
+    index = 0;
+    sumRMS = 0;
+    if (!calibrate[channel])
+    {
+        calibration(channel);
+    }
+    while (index < (samples + 1))
+    {
+        readInst(channel);
+        sumRMS += ((voltage - offSet[channel]) * coefLinear[channel]) * ((voltage - offSet[channel]) * coefLinear[channel]);
+        index++;
+    }
+
+    RMS = sqrt(sumRMS / samples);
+    Serial.print(">RMS:");
+    Serial.println(RMS, 6);
+}
+
+void ADSreads::calibration(int channel)
+{
+    voltMin = 5.0;
+    voltMax = 0.0;
+    contt = 0;
+    Serial.println("Calibration ");
+    while (contt < samples)
+    {
+        readInst(channel);
+        if (voltage < voltMin)
+        {
+            voltMin = voltage;
+        }
+        if (voltage > voltMax)
+        {
+            voltMax = voltage;
+        }
+        contt++;
+    }
+    Serial.println(voltMax, 6);
+    Serial.println(voltMin, 6);
+    offSet[channel] = (voltMax + voltMin) / 2.0;
+    Serial.println(offSet[channel], 6);
+    if (channel == 3)
+    {
+        coefLinear[3] = 253.751; // Ajusta coefLinear para o canal 3
+    }
+    else if (channel == 2)
+    {
+        coefLinear[2] = 30.769; // Ajusta coefLinear para o canal 2
+    }
+    calibrate[channel] = true;
 }

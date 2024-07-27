@@ -9,11 +9,17 @@ ADSreads Sensor(READY_PIN);
 void setup()
 {
   Serial.begin(115200);
-
+  Sensor.begin();
 }
 
-
+unsigned long currentTime, startTime = 0;
 void loop()
 {
-  Sensor.readFreq(3);
+  currentTime = millis();
+  if ((currentTime - startTime) >= 1000)
+  {
+    Sensor.readRMS(2);
+    while(1);
+    startTime = currentTime;
+  }
 }
