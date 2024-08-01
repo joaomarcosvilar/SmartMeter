@@ -11,9 +11,9 @@ public:
     Adafruit_ADS1115 ads;
     ADSreads(int _READY_PIN);
     void begin();
-    void readFreq(int channel);
+    float readFreq(int channel);
     void readInst(int channel);
-    void readRMS(int channel);
+    float readRMS(int channel);
     void calibration(int channel);
 
 private:
@@ -109,7 +109,7 @@ void ADSreads::setChannel(int channel)
     }
 }
 
-void ADSreads::readFreq(int channel)
+float ADSreads::readFreq(int channel)
 {
     setChannel(channel);
     if (!calibrate[channel])
@@ -132,10 +132,12 @@ void ADSreads::readFreq(int channel)
     }
 
     frequency = (zeroCrossings / 2.0) / ((millis() - startMillis) / 1000.0); // fazer tratamento para quando for desligado
-    Serial.print(">Frequency");
-    Serial.print(channel);
-    Serial.print(" :");
-    Serial.println(frequency);
+    return frequency;
+    // Serial.print(">Frequency");
+    // Serial.print(channel);
+    // Serial.print(" :");
+    // Serial.println(frequency);
+    //condição de leitura diferente de 60Hz
 }
 
 void ADSreads::readInst(int channel)
@@ -156,14 +158,14 @@ void ADSreads::readInst(int channel)
 
 // Aquisição de várias amostras do sinal, cálculo do quadrado de cada amostra,
 // média desses valores quadrados e, finalmente, extração da raiz quadrada da média.
-void ADSreads::readRMS(int channel)
+float ADSreads::readRMS(int channel)
 {
     index = 0;
     sumRMS = 0;
-    if (!calibrate[channel])
-    {
-        calibration(channel);
-    }
+    // if (!calibrate[channel])
+    // {
+    //     calibration(channel);
+    // }
     while (index < (samples + 1))
     {
         readInst(channel);
@@ -199,6 +201,9 @@ void ADSreads::calibration(int channel)
     Serial.println(voltMin, 6);
     offSet[channel] = (voltMax + voltMin) / 2.0;
     Serial.println(offSet[channel], 6);
+    //identificador de sensor acoplado
+
+
     if (channel == 3)
     {
         coefLinear[3] = 253.751; // Ajusta coefLinear para o canal 3

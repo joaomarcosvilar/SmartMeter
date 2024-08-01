@@ -10,6 +10,7 @@
             "includePath": [
                 "c:/Users/PC/Downloads/Projets/SmartMeter/include",
                 "c:/Users/PC/Downloads/Projets/SmartMeter/src",
+                "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/ArduinoJson/src",
                 "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/LoRaMESH",
                 "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/Adafruit ADS1X15",
                 "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/Adafruit BusIO",
@@ -250,6 +251,7 @@
                 "path": [
                     "c:/Users/PC/Downloads/Projets/SmartMeter/include",
                     "c:/Users/PC/Downloads/Projets/SmartMeter/src",
+                    "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/ArduinoJson/src",
                     "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/LoRaMESH",
                     "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/Adafruit ADS1X15",
                     "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/Adafruit BusIO",
