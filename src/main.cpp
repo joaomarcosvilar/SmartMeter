@@ -10,49 +10,58 @@
 ADSreads SensorV(vREADY_PIN, 0x48);
 
 #define iREADY_PIN 19
-ADSreads SensorI(iREADY_PIN, 0x4A);
+ADSreads SensorI(iREADY_PIN, 0x4B);
 
-// LoRaEnd lora(16,17);
+void IRAM_ATTR onVReady()
+{
+  SensorV.onNewDataReady();
+}
+
+void IRAM_ATTR onIReady()
+{
+  SensorI.onNewDataReady();
+}
+
+LoRaEnd lora(17, 16);
 
 DynamicJsonDocument data(253);
 String str;
 
-// void IRAM_ATTR ADSreads::onNewDataReady()
-// {
-//     if (instance)
-//     {
-//         instance->newData = true;
-//     }
-// } 
-// implementar update para receber a newdata
-
-
 void setup()
 {
   Serial.begin(115200);
+
   SensorV.begin();
   SensorI.begin();
+  attachInterrupt(digitalPinToInterrupt(vREADY_PIN), onVReady, FALLING);
+  attachInterrupt(digitalPinToInterrupt(iREADY_PIN), onIReady, FALLING);
+
   delay(1000);
-  // lora.begin(9600);
-  // attachInterrupt(digitalPinToInterrupt(READY_PIN), []()
-  //                   { if (ADSreads::instance) ADSreads::instance->onNewDataReady(); }, FALLING); trabalhar com os dois pinos
+  lora.begin(9600);
 }
 
+int contt = 0;
 unsigned long currentTime, startTime = 0;
 void loop()
 {
+  // Serial.print(">Vinst:");
+  // Serial.println(SensorI.readInst(0));
   currentTime = millis();
- 
-  if ((currentTime - startTime) >= 500)
+  if ((currentTime - startTime) >= 5000)
   {
-    // data["V"] = SensorV.readInst(0);
-    // data["I"] = SensorV.readInst(3);
-    // data["F"] = SensorV.readFreq(0);
+    float leitura = SensorV.readInst(0);
+    char leituraString[8];
+    dtostrf(leitura,4,2,leituraString);
+    data["V"] = leituraString;
+    data["I"] = SensorI.readInst(3);
+    data["F"] = SensorV.readFreq(0);
 
-    // serializeJson(data,str);
-    Serial.println(SensorV.readInst(0));
-    Serial.println(SensorI.readInst(0));
-    // lora.sendMaster(str);
+    serializeJson(data, str);
+
+    if (lora.idRead() == 1)
+    {
+      lora.sendMaster(str);
+    }
     startTime = currentTime;
   }
 }

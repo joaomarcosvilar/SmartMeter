@@ -10,6 +10,7 @@ public:
     LoRaEnd(int TXpin, int RXpin);
     void begin(int _baudrate);
     void sendMaster(String dados);
+    int idRead();
 
 private:
     HardwareSerial *_serial;
@@ -35,6 +36,11 @@ void LoRaEnd::begin(int _baudrate)
     Serial.println("Pass <= 65535: " + String(lora.registered_password));
     // rotina de indentificação de conexão
 }
+
+int LoRaEnd::idRead(){
+    return lora.localId;
+}
+
 
 void LoRaEnd::sendMaster(String dados)
 {

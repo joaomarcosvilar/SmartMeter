@@ -27,3 +27,23 @@ Indica que a cada 1V ->  253,751 V
 
 Leitura do multímetro:
 215,5 Vrms -> 304,763 V
+
+
+
+Tarefa de casa
+_________________________________________________________________________
+iniciar uma chave ou botão para calibração
+coleta os dados dos 6 sensores
+parametrizar a calibração quando 
+usar uma lâmpada shunt na rede para ler os parametros dela
+
+espreif - armazenamento no esp desses dados de configuração no formato yaml file
+criar  interface com python para traduzir e enviar esses dados 
+
+comunicação com o esp32 por via webservice para os dados de configuração
+
+
+links importantes:
+https://github.com/tobozo/YAMLDuino
+https://blog.eletrogate.com/spiffs-armazenamento-de-arquivos-do-esp32/
+https://randomnerdtutorials.com/install-esp32-filesystem-uploader-arduino-ide/

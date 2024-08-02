@@ -15,6 +15,7 @@ public:
     float readInst(int channel);
     float readRMS(int channel);
     void calibration(int channel);
+    void IRAM_ATTR onNewDataReady(); // Função de Interrupção do pino ALRT
 
 private:
     int READY_PIN;                           // Pino ALRT do ADS1115
@@ -22,8 +23,8 @@ private:
     int samples = 860;
 
     volatile bool newData = false;
-    void IRAM_ATTR onNewDataReady(); // Função de Interrupção do pino ALRT
-    static ADSreads *instance;       // Ponteiro estático para a instância
+
+    static ADSreads *instance; // Ponteiro estático para a instância
     uint8_t adress;
 
     uint16_t muxConfig;
@@ -69,20 +70,11 @@ void ADSreads::begin()
     ads.setDataRate(dataRate);
 
     pinMode(READY_PIN, INPUT_PULLUP);
-    instance = this; // Atribui a instância atual ao ponteiro estático
-    attachInterrupt(digitalPinToInterrupt(READY_PIN), []()
-                    { ADSreads::instance->onNewDataReady(); }, FALLING);
-
-    // Começa a leitura contínua no canal inicial
-    setChannel(0); // Canal inicial padrão, por exemplo, canal 0
 }
 
 void IRAM_ATTR ADSreads::onNewDataReady()
 {
-    if (instance)
-    {
-        instance->newData = true;
-    }
+    newData = true;
 }
 
 uint16_t ADSreads::translateMuxconfig(int channel)
@@ -114,11 +106,7 @@ void ADSreads::setChannel(int channel)
 
 float ADSreads::readFreq(int channel)
 {
-    // setChannel(channel);
-    // if (!calibrate[channel])
-    // {
-    //     calibration(channel);
-    // }
+    setChannel(channel);
     zeroCrossings = 0;
     index = 0;
     unsigned long startMillis = millis();
@@ -136,10 +124,10 @@ float ADSreads::readFreq(int channel)
     }
 
     frequency = (zeroCrossings / 2.0) / ((millis() - startMillis) / 1000.0); // fazer tratamento para quando for desligado
-    Serial.print(">Frequency");
-    Serial.print(channel);
-    Serial.print(" :");
-    Serial.println(frequency);
+    // Serial.print(">Frequency");
+    // Serial.print(channel);
+    // Serial.print(" :");
+    // Serial.println(frequency);
     return frequency;
 
     // condição de leitura diferente de 60Hz
@@ -148,19 +136,18 @@ float ADSreads::readFreq(int channel)
 float ADSreads::readInst(int channel)
 {
     setChannel(channel);
-    while (1)
+    unsigned long startTime = millis();
+
+    while (millis() - startTime < 500)
     {
-        Serial.print("Aqui");
         if (newData)
         {
-            break;
+            newData = false;
+            return (ads.computeVolts(ads.getLastConversionResults()));
         }
     }
-    // voltage = ads.computeVolts(ads.getLastConversionResults());
-    // Serial.print(">Vinst:");
-    // Serial.println(voltage);
-    newData = false;
-    return ads.computeVolts(ads.getLastConversionResults());
+    Serial.println("ADC error");
+    return 0;
 }
 
 // Aquisição de várias amostras do sinal, cálculo do quadrado de cada amostra,
@@ -169,10 +156,6 @@ float ADSreads::readRMS(int channel)
 {
     index = 0;
     sumRMS = 0;
-    // if (!calibrate[channel])
-    // {
-    //     calibration(channel);
-    // }
     while (index < (samples + 1))
     {
         voltage = readInst(channel);
@@ -183,7 +166,7 @@ float ADSreads::readRMS(int channel)
     RMS = sqrt(sumRMS / samples);
     // Serial.print(">RMS:");
     // Serial.println(RMS, 6);
-    return RMS;
+    return round(RMS * 100.0) / 100.0;
 }
 
 void ADSreads::calibration(int channel)
@@ -211,13 +194,5 @@ void ADSreads::calibration(int channel)
     Serial.println(offSet[channel], 6);
     // identificador de sensor acoplado
 
-    if (channel == 3)
-    {
-        coefLinear[3] = 253.751; // Ajusta coefLinear para o canal 3
-    }
-    else if (channel == 2)
-    {
-        coefLinear[2] = 30.769; // Ajusta coefLinear para o canal 2
-    }
     calibrate[channel] = true;
 }
