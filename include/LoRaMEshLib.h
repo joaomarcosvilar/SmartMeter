@@ -33,16 +33,18 @@ void LoRaEnd::begin(int _baudrate)
     Serial.println("LocalID: " + String(lora.localId));
     Serial.println("UniqueID: " + String(lora.localUniqueId));
     Serial.println("Pass <= 65535: " + String(lora.registered_password));
+    // rotina de indentificação de conexão
 }
 
 void LoRaEnd::sendMaster(String dados)
 {
-    uint8_t payload[dados.length()];
-    dados.getBytes(payload, dados.length() + 1);
+    uint8_t payload[dados.length() + 1];
+    dados.getBytes(payload, dados.length() + 1); // mensagem.toCharArray(payload, tamanho);
     uint8_t payloadSize = dados.length() + 1;
-    command = 0xD6; ;// comando errado
-    id = 0;
-    if (lora.PrepareFrameCommand(id , command, payload, payloadSize))
+    command = 0x10; // Para enviar uma String deve-se usar os comandos de aplicação, ou seja, no byte[2] colocar um comando com valor maior que 12 e menor que 128
+    id = 0; //Para o mestre
+
+    if (lora.PrepareFrameCommand(id, command, payload, payloadSize))
     {
         if (lora.SendPacket())
         {
