@@ -4,30 +4,64 @@ Escravo: 10152 COM6
 _________________________________________________________________________
 Calibração sensor de corrente:
 
-8 voltas:
-vMax = 2.80425     -> 16,4 A
-vMin = 1.736812     -> -16,4 A
-vMean = 2.270531    -> 0 A
+Primeira calibração:
+    8 voltas:
+    vMax = 2.80425     -> 16,4 A
+    vMin = 1.736812     -> -16,4 A
+    vMean = 2.270531    -> 0 A
 
-Variação vMax - vMean = 0,533V    -> 16,4A
-Indica que a cada 1V -> 30,769A
+    Variação vMax - vMean = 0,533V    -> 16,4A
+    Indica que a cada 1V -> 30,769A
 
-Leitura do multímetro:
-11,6 Arms -> 16,4 A
+    Leitura do multímetro:
+    11,6 Arms -> 16,4 A
+
+
+Segunda calibração peo EXCEL com 5 voltas:
+            LEITURA	        real	        Leitura RMS pelo Amperímetro 
+    max	    2,604563	    4,596194078	    3,25
+    min	    2,455312	    -4,596194078	
+    media	2,529166073	    0	
+
+    equação definida:
+                        Real       =   61,588*Leitura    - 155,8
+                        Real       =   a*Leitura   + b
+
+
 
 _________________________________________________________________________
 Calibração sensor de Tensão:
 
-vMax = 3.699938     -> 304,763 V
-vMin = 1.297875     -> -304,763 V
-vMean = 2.498906    -> 0 V
+Primeira calibração:
+    vMax = 3.699938     -> 304,763 V
+    vMin = 1.297875     -> -304,763 V
+    vMean = 2.498906    -> 0 V
 
-Variação vMax - vMean = 1,201032V    -> 304,763 V
-Indica que a cada 1V ->  253,751 V
+    Variação vMax - vMean = 1,201032V    -> 304,763 V
+    Indica que a cada 1V ->  253,751 V
 
-Leitura do multímetro:
-215,5 Vrms -> 304,763 V
+    Leitura do multímetro:
+    215,5 Vrms -> 304,763 V
 
+Segunda calibração pelo EXCEL:
+
+------calibração do valor instantaneo:
+            LEITURA	        real	        Leitura RMS do multímetro
+    max	    3,684375	    294,8635278	    208,5
+    min	    1,358438	    -294,8635278	
+    media	2,518408167	    0	
+
+    equação definida:  Real = 253,54*Leitura - 639,03     R² = 1
+                        Real = a*Leitura - b
+
+Equação para implementação de autocalibração:
+vpico = meterRMS*sqrt(2);
+a = (2*vpico)/(LeituraMax - LeituraMin);
+b = -(a*LeituraMedia);
+
+
+
+OBS: Com essas calibrações, obtive o erro de -0.05Arms do lido para o Real e -5Vrms
 
 
 Tarefa de casa
@@ -47,3 +81,9 @@ links importantes:
 https://github.com/tobozo/YAMLDuino
 https://blog.eletrogate.com/spiffs-armazenamento-de-arquivos-do-esp32/
 https://randomnerdtutorials.com/install-esp32-filesystem-uploader-arduino-ide/
+
+
+__________________________________________________________________________________
+Informações para a construção da board:
+- resistor de pullup no sda e slc do ads retira erro de leitura;
+- resistor para offset do sensor de corrente;

@@ -31,9 +31,9 @@ void LoRaEnd::begin(int _baudrate)
 {
     _serial->begin(_baudrate, SERIAL_8N1, _RXpin, _TXpin);
     lora.begin(true);
-    Serial.println("LocalID: " + String(lora.localId));
-    Serial.println("UniqueID: " + String(lora.localUniqueId));
-    Serial.println("Pass <= 65535: " + String(lora.registered_password));
+    // Serial.println("LocalID: " + String(lora.localId));
+    // Serial.println("UniqueID: " + String(lora.localUniqueId));
+    // Serial.println("Pass <= 65535: " + String(lora.registered_password));
     // rotina de indentificação de conexão
 }
 
