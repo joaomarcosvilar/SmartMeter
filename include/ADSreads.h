@@ -215,37 +215,34 @@ void ADSreads::calibration(int channel)
 
         // Calibração INST
         //  não está funcionando
-        //  String inputString = "";
-        //  Serial.print("Insert RMS read in meter: ");
-        //  while (true)
-        //  {
-        //      if (Serial.available() > 0)
-        //      {
-        //          char inChar = Serial.read(); // Lê o próximo caractere disponível
-        //          if (inChar == '\n')          // Verifica se a tecla Enter foi pressionada (final da entrada)
-        //          {
-        //              meterRMS[channel] = inputString.toFloat(); // Converte a string em float
-        //              // Identificador de sensor acoplado manualmente
-        //              if (meterRMS[channel] == 0.0)
-        //              {
-        //                  avaliable[channel] = false;
-        //                  Serial.println("Valor RMS inserido é 0.0. Sensor não disponível.");
-        //                  return;
-        //              }
-        //              break;
-        //          }
-        //          else
-        //          {
-        //              inputString += inChar; // Adiciona o caractere à string de entrada
-        //          }
-        //      }
-        //  }
+        String inputString = "";
+        Serial.print("Insert RMS read in meter: ");
+        while (true)
+        {
+            if (Serial.available() > 0)
+            {
+                inputString = Serial.readString(); // Lê o próximo caractere disponível
+                if (inputString.length() > 0) // Certifica-se de que algo foi digitado antes de Enter
+                {
+                    {
+                        meterRMS[channel] = inputString.toFloat();
+                        if (meterRMS[channel] == 0.0) // Identificador de sensor acoplado manualmente
+                        {
+                            avaliable[channel] = false;
+                            Serial.println("Valor RMS inserido é 0.0. Sensor não disponível.");
+                            return;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
         meterRMS[0] = 216.3; //<-- para testes enquanto resolve problema com serial.read
         sumRMS = 0;
         voltMin = 5.0;
         voltMax = 0.0;
         contt = 0;
-        while (contt < (3*samples + 1))
+        while (contt < (3 * samples + 1))
         {
             voltage = readInst(channel);
             sumRMS += voltage;
@@ -300,7 +297,6 @@ void ADSreads::calibration(int channel)
         //     sumRMS = sumRMS/samples;
         //     inRMS[i] = sqrt(sumRMS);
         // }
-
     }
     else
     {

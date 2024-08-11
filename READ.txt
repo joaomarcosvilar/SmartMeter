@@ -63,6 +63,9 @@ b = -(a*LeituraMedia);
 
 OBS: Com essas calibrações, obtive o erro de -0.05Arms do lido para o Real e -5Vrms
 
+janela de calibração em 30s
+arquivo json com 3 espaços para armazenamento dos coeficientes
+script para leitura, tratamento e calculo dos coeficientes (python)
 
 Tarefa de casa
 _________________________________________________________________________
@@ -81,7 +84,9 @@ links importantes:
 https://github.com/tobozo/YAMLDuino
 https://blog.eletrogate.com/spiffs-armazenamento-de-arquivos-do-esp32/
 https://randomnerdtutorials.com/install-esp32-filesystem-uploader-arduino-ide/
-
+https://blog.r0b.io/post/deploying-esp32-with-spiffs-using-github-actions/
+https://github.com/Nabilphysics/json-data-save-to-spiffs-esp32/blob/main/json-data-save-to-spiffs-esp32/json-data-save-to-spiffs-esp32.ino
+https://kongduino.wordpress.com/2018/04/30/preferences-spiffs-and-json/
 
 __________________________________________________________________________________
 Informações para a construção da board:

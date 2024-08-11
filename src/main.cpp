@@ -80,33 +80,33 @@ void loop()
   //   startTime = currentTime;
   // }
 
-  // while (contt < 2001)
-  // {
-  //   leitura[contt].timer = millis();
-  //   leitura[contt].vinst = SensorI.readInst(0);
-  //   contt++;
-  // }
-  // contt = 0;
-  // while (contt < 2001)
-  // {
-  //   if ((millis() - startTime) > 10)
-  //   {
-  //     Serial.print(leitura[contt].timer);
-  //     Serial.print("|");
-  //     Serial.print(leitura[contt].vinst, 6);
-  //     Serial.print(",");
-  //     contt++;
-  //   }
-  // }
-  // while (1)
-  //   ;
-
-  currentTime = millis();
-  if ((currentTime - startTime) >= 500)
+  while (contt < 2001)
   {
-    Serial.print(SensorV.readInst(0), 6);
-    Serial.print(" : ");
-    Serial.println(SensorV.readRMS(0),6);
-    startTime = currentTime;
+    leitura[contt].timer = millis();
+    leitura[contt].vinst = SensorI.readInst(0);
+    contt++;
   }
+  contt = 0;
+  while (contt < 2001)
+  {
+    if ((millis() - startTime) > 10)
+    {
+      Serial.print(leitura[contt].timer);
+      Serial.print("|");
+      Serial.print(leitura[contt].vinst, 6);
+      Serial.print(",");
+      contt++;
+    }
+  }
+  while (1)
+    ;
+
+  // currentTime = millis();
+  // if ((currentTime - startTime) >= 500)
+  // {
+  //   Serial.print(SensorV.readInst(0), 6);
+  //   Serial.print(" : ");
+  //   Serial.println(SensorV.readRMS(0),6);
+  //   startTime = currentTime;
+  // }
 }
