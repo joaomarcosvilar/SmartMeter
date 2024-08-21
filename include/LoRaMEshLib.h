@@ -54,15 +54,15 @@ void LoRaEnd::sendMaster(String dados)
     {
         if (lora.SendPacket())
         {
-            Serial.println("Pacote enviado com sucesso!");
+            // Serial.println("Pacote enviado com sucesso!");
         }
         else
         {
-            Serial.println("Falha ao enviar o pacote!");
+            // Serial.println("Falha ao enviar o pacote!");
         }
     }
     else
     {
-        Serial.println("Falha ao preparar o pacote!");
+        // Serial.println("Falha ao preparar o pacote!");
     }
 }

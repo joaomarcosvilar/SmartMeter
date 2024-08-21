@@ -44,8 +44,7 @@ Primeira calibração:
     215,5 Vrms -> 304,763 V
 
 Segunda calibração pelo EXCEL:
-
-------calibração do valor instantaneo:
+    calibração do valor instantaneo:
             LEITURA	        real	        Leitura RMS do multímetro
     max	    3,684375	    294,8635278	    208,5
     min	    1,358438	    -294,8635278	
@@ -55,29 +54,20 @@ Segunda calibração pelo EXCEL:
                         Real = a*Leitura - b
 
 Equação para implementação de autocalibração:
-vpico = meterRMS*sqrt(2);
-a = (2*vpico)/(LeituraMax - LeituraMin);
-b = -(a*LeituraMedia);
-
-
+    vpico = meterRMS*sqrt(2);
+    a = (2*vpico)/(LeituraMax - LeituraMin);
+    b = -(a*LeituraMedia);
 
 OBS: Com essas calibrações, obtive o erro de -0.05Arms do lido para o Real e -5Vrms
 
-janela de calibração em 30s
-arquivo json com 3 espaços para armazenamento dos coeficientes
-script para leitura, tratamento e calculo dos coeficientes (python)
-
 Tarefa de casa
 _________________________________________________________________________
-iniciar uma chave ou botão para calibração
-coleta os dados dos 6 sensores
-parametrizar a calibração quando 
-usar uma lâmpada shunt na rede para ler os parametros dela
-
-espreif - armazenamento no esp desses dados de configuração no formato yaml file
-criar  interface com python para traduzir e enviar esses dados 
 
 comunicação com o esp32 por via webservice para os dados de configuração
+
+
+ONDE PAREI:
+calibração não está ocorrendo corretamente: calculo de corrente Irms nominal está errado
 
 
 links importantes:
@@ -92,3 +82,75 @@ ________________________________________________________________________________
 Informações para a construção da board:
 - resistor de pullup no sda e slc do ads retira erro de leitura;
 - resistor para offset do sensor de corrente;
+- amplificador acionado para leitura dos sensore de corrente quando em calibração?
+
+
+
+
+
+_________________________________________________________________________
+A alocação de memória do DynamicJsonDocument foi basedo no seguinte:
+Para calcular a melhor alocação de memória para um `DynamicJsonDocument` que vai manipular esse JSON, é necessário considerar o tamanho e a estrutura do JSON. O `DynamicJsonDocument` precisa ser capaz de armazenar os objetos, arrays e os valores numéricos.
+
+O JSON terá a seguinte estrutura:
+
+{
+  "V": [
+    {"a": 1, "b": 0},
+    {"a": 1, "b": 0},
+    {"a": 1, "b": 0}
+  ],
+  "I": [
+    {"a": 1, "b": 0},
+    {"a": 1, "b": 0},
+    {"a": 1, "b": 0}
+  ]
+}
+
+
+### Considerações para o cálculo:
+- Existem dois objetos principais (`V` e `I`), que contêm arrays.
+- Cada array tem 3 objetos, cada um com dois campos (`a` e `b`), e cada campo contém números de ponto flutuante.
+
+### Estimativa de memória
+
+A biblioteca `ArduinoJson` fornece uma maneira de estimar a quantidade de memória necessária com a função `JSON_OBJECT_SIZE()` e `JSON_ARRAY_SIZE()`.
+
+Neste caso:
+- O JSON contém dois objetos principais (`V` e `I`), então precisamos de `JSON_OBJECT_SIZE(2)`.
+- Cada um desses objetos contém um array de 3 objetos, então precisamos de `JSON_ARRAY_SIZE(3)`.
+- Cada um desses objetos dentro do array contém dois campos (`a` e `b`), então precisamos de `JSON_OBJECT_SIZE(2)` para cada objeto no array.
+
+### Cálculo detalhado
+
+A memória necessária é a soma do tamanho dos objetos principais, os arrays, e os objetos dentro dos arrays. Com base nisso:
+
+- `JSON_OBJECT_SIZE(2)` para os objetos principais (`V` e `I`).
+- `JSON_ARRAY_SIZE(3)` para cada array contendo 3 objetos.
+- `3 * JSON_OBJECT_SIZE(2)` para os 3 objetos dentro do array, cada um com dois pares `a` e `b`.
+
+O total será:
+
+const size_t capacity = JSON_OBJECT_SIZE(2) + 2 * JSON_ARRAY_SIZE(3) + 6 * JSON_OBJECT_SIZE(2);
+
+A função `JSON_OBJECT_SIZE(2)` retorna a quantidade de bytes necessária para armazenar um objeto com 2 pares chave/valor, e `JSON_ARRAY_SIZE(3)` retorna o tamanho de um array com 3 elementos.
+
+### Cálculo exato com o valor:
+
+- `JSON_OBJECT_SIZE(2)` para "V" e "I" = 2 * 32 bytes (estimado).
+- `JSON_ARRAY_SIZE(3)` para os arrays = 2 * 48 bytes (estimado).
+- `3 * JSON_OBJECT_SIZE(2)` para os objetos dentro de "V" e "I" = 6 * 32 bytes (estimado).
+
+Somando, temos:
+
+const size_t capacity = 32 + 32 + 48 + 48 + (6 * 32);  // Total: 384 bytes
+
+
+Portanto, o valor recomendado para o `DynamicJsonDocument` seria de **384 bytes**.
+
+### Exemplo de código:
+
+DynamicJsonDocument doc(384);
+
+
+Esse valor garante que seu JSON será armazenado adequadamente no `DynamicJsonDocument` sem estourar a memória alocada.

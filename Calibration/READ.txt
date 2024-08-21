@@ -28,3 +28,12 @@ Após cada calibração, altere a faixa do dimmer e repita o procedimento até c
 Objetivo da Calibração
 O objetivo é melhorar a precisão das medições de tensão e corrente, garantindo leituras corretas em diferentes condições de operação. Este processo ajusta os coeficientes de calibração para cada faixa de tensão e corrente, garantindo resultados confiáveis e consistentes.
 
+
+
+ideias de circuito:
+https://www.youtube.com/watch?v=fBNU17zJlnM
+https://www.youtube.com/watch?v=w9UTcIDKYk8
+
+https://www.youtube.com/watch?v=efjMc2byOrs <--- melhor
+
+O esp vai acionar a faixa para os 3 dimmer de uma única vez, podemos usar um circuito contador para alterar a faixa, apenas um pino fica responsável por mudar as faixas
