@@ -24,12 +24,12 @@ MySPIFFS files;
 
 TaskHandle_t CalibrationHandle = NULL;
 TaskHandle_t TranslateSerialHandle = NULL;
-TaskHandle_t RMSreadHandle = NULL;
+TaskHandle_t InsertCoefficientsHandle = NULL;
 TaskHandle_t MeshSendHandle = NULL;
 
 void vCalibration(void *pvParameters);
 void vTranslateSerial(void *pvParameters);
-void vRMSread(void *pvParameters);
+void vInsertCoefficients(void *pvParameters);
 void vMeshSend(void *pvParameters);
 
 #define SAMPLES 2680
@@ -82,11 +82,12 @@ void vTranslateSerial(void *pvParameters)
           // xTaskNotifyGive(CalibrationHandle);
           xTaskCreate(vCalibration, "Calibration", configMINIMAL_STACK_SIZE + 2048, NULL, 2, &CalibrationHandle);
         }
-        if (inputString.equals("RMS"))
+
+        if (inputString.equals("InsertCoefficients"))
         {
-          // xTaskNotifyGive(RMSreadHandle);
-          xTaskCreate(vRMSread, "RMSread", configMINIMAL_STACK_SIZE + 3072, NULL, 2, &RMSreadHandle);
+          xTaskCreate(vInsertCoefficients, "InsertCoefficients", configMINIMAL_STACK_SIZE + 2048, NULL, 2, &InsertCoefficientsHandle);
         }
+
         if (inputString.equals("LoraMesh"))
         {
           xTaskCreate(vMeshSend, "MeshSend", configMINIMAL_STACK_SIZE + 3072, NULL, 1, &MeshSendHandle);
@@ -97,10 +98,20 @@ void vTranslateSerial(void *pvParameters)
         // {
         //   files.format();
         // }
-        // if (inputString.equals("List Calibration"))
-        // {
-        //   files.list("/calibration.txt");
-        // }
+        if (inputString.equals("List Calibration"))
+        {
+          Serial.println("aqui");
+          files.list("/calibration.txt");
+        }
+        if (inputString.equals("InstRead"))
+        {
+          int i = 0;
+          while (i < SAMPLES)
+          {
+            Serial.println((SensorI.readInst(0)), 6);
+            i++;
+          }
+        }
 
         inputString = "";
         Serial.flush();
@@ -159,16 +170,12 @@ void vTranslateSerial(void *pvParameters)
 */
 void vCalibration(void *pvParameters)
 {
-  // while (true)
-  // {
-  // ulTaskNotifyTake(pdTRUE, portMAX_DELAY); // Aguardando notificação
   Serial.println("OK_1");
 
   int channel = 0;
   bool alt = false;
   String sensor = "V";
 
-  // Leitura dos parâmetros de calibração
   unsigned long starttime = millis();
   while (true)
   {
@@ -183,8 +190,6 @@ void vCalibration(void *pvParameters)
 
       if ((!(sensor.equals("V")) && !(sensor.equals("I"))))
       {
-        Serial.print(sensor); Serial.print(" "); Serial.print(channel);
-        Serial.println("<-Invalid sensor input.");
         break;
       }
 
@@ -199,65 +204,32 @@ void vCalibration(void *pvParameters)
         }
 
         Serial.println("OK_2"); // Pausa a captura de dados pelo Calibration.py
-
-        // Leitura dos coeficientes e armazenamento
-        starttime = millis();
-        while (true)
-        {
-          if (Serial.available() > 0)
-          {
-            inputString = Serial.readString();
-            int limiter = inputString.indexOf('|');
-            String str_a = inputString.substring(0, limiter);
-            String str_b = inputString.substring(limiter + 1);
-            inputString = "";
-
-            float a = str_a.toFloat();
-            float b = str_b.toFloat();
-
-            files.insCoef(sensor, channel, a, b);
-            break;
-          }
-
-          if ((millis() - starttime) >= TimeOut)
-          {
-            // Serial.println("Time Out 1");
-            break;
-          }
-        }
+        break;
       }
-      break;
     }
     vTaskDelay(pdMS_TO_TICKS(100));
     if ((millis() - starttime) >= TimeOut)
     {
-      // Serial.println("Time Out");
       break;
     }
   }
   Serial.flush();
-  // }
   vTaskDelete(NULL);
 }
 
 /*
-  TASK auxiliar para calibração do sensor de corrente
-
-  FUNÇÂO: quando solicitado o RMS pela serial, a task irá aguardar qual
-  o canal e o sensor ela vai retornar a leitura RMS real, puxando os coeficientes
-  armazenados no calibration.txt.
+  TASK 
+  FUNÇÂO: 
 */
-void vRMSread(void *pvParameters)
+void vInsertCoefficients(void *pvParameters)
 {
-  // while (true)
-  // {
-  // ulTaskNotifyTake(pdTRUE, portMAX_DELAY); // Esperando notificação
-  Serial.println("OK");
-
+  
   int channel = 0;
   bool alt = false;
 
   unsigned long starttime = millis();
+  Serial.println("OK");
+
   while (true)
   {
     if (Serial.available() > 0)
@@ -268,30 +240,46 @@ void vRMSread(void *pvParameters)
       String sensor = inputString.substring(limiter + 1);
       channel = str_channel.toInt();
       inputString = "";
-
+      Serial.print(channel);Serial.print(" "); Serial.println(sensor);
       if ((!(sensor.equals("V")) && !(sensor.equals("I"))))
       {
-        // Serial.print(sensor);
-        // Serial.println("<-Invalid sensor input.");
+        Serial.println("Error aqui");
         break;
       }
+      Serial.flush();
+      Serial.print("OK_");
 
-      // Pega os coeficientes armazendos
-      float a = files.getCoef(sensor, channel, "a");
-      float b = files.getCoef(sensor, channel, "b");
-      // Serial.print(a); Serial.print(" ");Serial.print(b);
+      starttime = millis();
+      while (true)
+      {
+        if (Serial.available() > 0)
+        {
+          inputString = Serial.readString();
+          int limiter = inputString.indexOf('|');
+          String str_a = inputString.substring(0, limiter);
+          String str_b = inputString.substring(limiter + 1);
+          inputString = "";
 
-      alt = sensor.equals("I");
-      // Serial.println(alt);
+          float a = str_a.toFloat();
+          float b = str_b.toFloat();
+          Serial.print(a,6);Serial.print(" ");Serial.println(b,6);
+          files.insCoef(sensor, channel, a, b);
+          break;
+        }
 
-      float rmsValue = !alt ? SensorV.readRMS(channel, a, b) : SensorI.readRMS(channel, a, b);
-      Serial.println(String(rmsValue));
+        if ((millis() - starttime) >= TimeOut)
+        {
+          Serial.println("Time Out");
+          break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+      }
 
+      
       break;
     }
     if ((millis() - starttime) >= TimeOut)
     {
-      // Serial.println("Time Out");
       break;
     }
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -309,9 +297,6 @@ void vRMSread(void *pvParameters)
 */
 void vMeshSend(void *pvParameters)
 {
-  // while (true)
-  // {
-  // ulTaskNotifyTake(pdTRUE, portMAX_DELAY); // Esperando notificação
   bool alt;
   String sensor;
   DynamicJsonDocument data(160);

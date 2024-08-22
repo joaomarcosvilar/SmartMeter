@@ -35,35 +35,44 @@ def get_rms_value():
         except ValueError:
             print("Invalid input. Please enter a numeric value.")
 
-def getIrms(ser, channel):
+def getIrms(ser, channel,rms):
+    idle_timeout = 5
+    Flag = True
     while True:
         try:
             # Request user input
-            Pn = float(input("Enter the Power of the Lamp in 220Vrms: "))
-                        
+            In = float(input("Enter the Cuurent of the Lamp in 220Vrms: "))
+            return In      
             # Check if the power is within the allowed range
-            if 0.0 < Pn < 500.0:
-                Rn = 48400 / Pn  # Calculate nominal resistance
-                ser.write(b"RMS")
+            # if 0.0 < Pn < 1000.0:
+            #     Rn = 48400 / (Pn)  # Calculate nominal resistance
+            #     In = rms / Rn
+            #     return In # Corrente medida em 1 volta/ Corrente medida em 6 voltas
+                # ser.write(b"RMS")
                 
-                while True:
-                    data = ser.readline().decode('utf-8').rstrip()
-                    # print(f"Board response: {data}")  # Debug sync response
+                # while Flag:
+                #     data = ser.readline().decode('utf-8').rstrip()
+                #     print(f"Board response: {data}")  # Debug sync response
                     
-                    if data == "OK":
-                        send = f"{channel}|V"
-                        ser.write(send.encode())
-                        print(f"Sending command: {send}")
-                        
-                        while True:
-                            data = ser.readline().decode('utf-8').rstrip()
-                            print(f"Board response: {data}")  # Debug Vrms response
-                            if data > "0.0":  # Check if the received data is not empty or zero
-                                Irms = float(data) / Rn  # Calculate RMS current
-                                # Irms = Irms / 6     # Cable turns on sensor
-                                return Irms
-            else:
-                print("Invalid input. Power value should be between 0 and 500.")
+                #     if data == "OK":
+                #         send = f"{channel}|V"
+                #         ser.write(send.encode())
+                #         print(f"Sending command: {send}")
+                #         last_receive_time = time.time()
+                #         while True:
+                #             data = ser.readline().decode('utf-8').rstrip()
+                #             print(f"Board response: {data}")  # Debug Vrms response
+                #             if data > "0.0":  # Check if the received data is not empty or zero
+                #                 Irms = float(data) / Rn  # Calculate RMS current
+                #                 # Irms = Irms / 6     # Cable turns on sensor
+                #                 return Irms
+                #             if time.time() - last_receive_time > idle_timeout:
+                #                 print("Timeout: No data received.")
+                #                 Flag = False
+                #                 break
+                                
+            # else:
+            #     print("Invalid input. Power value should be between 0 and 500.")
         
         except ValueError as e:
             print(f"Invalid input. Please enter a numeric value. Error: {e}")
@@ -93,7 +102,7 @@ def collect_dynamic_data(ser):
             break
         
         if data == "OK_2":
-            # print("Calibration completed.")
+            print("Calibration completed.")
             break
 
         if data:
@@ -102,34 +111,31 @@ def collect_dynamic_data(ser):
                 voltage = float(data)
                 vinst.append(voltage)
                 total_sum += voltage
+                # total_sum += voltage*voltage
             except ValueError as e:
                 print(f"Error parsing data: {e}")
         else:
             if time.time() - last_receive_time > idle_timeout:
                 print("Timeout: No data received.")
                 break
-
+    
+    # total_sum = total_sum / len(vinst)
+    # total_sum = sqrt(total_sum)
     return vinst, total_sum
 
 def calculate_coefficients(vinst, rms, total_sum):
     if len(vinst) == 0:
         raise ValueError("No data collected.")
-
+    print(vinst)
     max_vinst = max(vinst)
     min_vinst = min(vinst)
     mean = total_sum / len(vinst)
     v_peak_peak = 2.0 * rms * sqrt(2)
     a = v_peak_peak / (max_vinst - min_vinst)
     b = -a * mean
-    return a, b
-
-
     
-def wait_for_confirmation():
-    while True:
-        confirmer = input()
-        if confirmer.strip().upper() == "OK":
-            break
+    print(f"Vmin: {min_vinst}, Vmax: {max_vinst}, mean: {mean}, V_Peak_Peak: {v_peak_peak}")
+    return a, b
         
 
 def main():
@@ -139,7 +145,6 @@ def main():
     except Exception as e:
         print(e)
         return
-
     continueCalibration = True
     sensor = ""
     flagCurrent = False
@@ -147,10 +152,11 @@ def main():
         if not flagCurrent:
             channel = set_channel()
             rms = get_rms_value()  # Voltage Calibration
+            Vrms = rms
             print(f"Calibrating Voltage, channel {channel}, Vrms: {rms}")
             sensor = "V"
         else:
-            rms = getIrms(board, channel)  # Current Calibration
+            rms = getIrms(board, channel,Vrms)  # Current Calibration
             print(f"Calibrating Current, channel {channel}, Irms: {rms}")
             flagCurrent = False
             sensor = "I"
@@ -159,7 +165,7 @@ def main():
         
         while True:
             send = board.readline().decode('utf-8').rstrip()
-            # print(f"Board response: {send}")  # Debug sync response
+            print(f"Board response: {send}")  # Debug sync response
             
             if send == "Time Out":
                 continueCalibration = False
@@ -167,7 +173,7 @@ def main():
             
             if send == "OK_1":
                 send = f"{channel}|{sensor}"
-                # print(f"Sending command: {send}")
+                print(f"Sending command: {send}")
                 board.write(send.encode())
 
                 vinst, total_sum = collect_dynamic_data(board)
@@ -180,7 +186,7 @@ def main():
                 try:
                     a, b = calculate_coefficients(vinst, rms, total_sum)
                     send = f"{a}|{b}"
-                    # print(f"Sending coefficients: {send}")
+                    print(f"Sending coefficients: {send}")
                     board.write(send.encode())
                 except ValueError as e:
                     print(e)

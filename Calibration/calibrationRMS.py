@@ -1,0 +1,194 @@
+import os
+import time
+import serial
+import serial.tools.list_ports
+from math import sqrt
+import numpy as np
+from sklearn.linear_model import LinearRegression
+
+
+def find_serial_port():
+    print('Searching for serial ports...')
+    ports = serial.tools.list_ports.comports(include_links=False)
+    if ports:
+        for port in ports:
+            print('Found port ' + port.device)
+        return ports[0].device
+    else:
+        raise Exception("No serial ports found!")
+
+def connect_serial(port):
+    try:
+        ser = serial.Serial(port, 115200, timeout=1)
+        ser.flushInput()
+        ser.flushOutput()
+        print(f'Connected to {ser.name}')
+        return ser
+    except Exception as e:
+        raise Exception(f"Failed to connect to serial port: {e}")
+
+def get_rms_value():
+    while True:
+        try:
+            rms = float(input("Enter the RMS voltage reading: "))
+            if 0.0 <= rms <= 500.0:
+                return rms
+            else:
+                print("Invalid input. RMS value should be between 0 and 500.")
+        except ValueError:
+            print("Invalid input. Please enter a numeric value.")
+
+def getIrms():
+    idle_timeout = 5
+    Flag = True
+    while True:
+        try:
+            # Request user input
+            In = float(input("Enter the Cuurent of the Lamp in 220Vrms: "))
+            return In      
+        
+        except ValueError as e:
+            print(f"Invalid input. Please enter a numeric value. Error: {e}")
+            
+def set_channel():
+    while True:
+        try:
+            channel = int(input("Enter the Channel reading: "))
+            if 0 <= channel < 4:
+                return channel
+            else:
+                print("Invalid input. Channel value should be between 0 and 3.")
+        except ValueError:
+            print("Invalid input. Please enter a numeric value.")
+
+def collect_dynamic_data(ser):
+    rms = 0
+    samples = 0
+    sumRMS = 0
+    idle_timeout = 5
+    last_receive_time = time.time()
+
+    while True:
+        data = ser.readline().decode('utf-8').rstrip()
+        # print(data)
+        if data == "Invalid sensor input.":
+            # print("Invalid sensor input.")
+            break
+        
+        if data == "OK_2":
+            print("Calibration completed.")
+            break
+
+        if data:
+            last_receive_time = time.time()
+            try:
+                voltage = float(data)
+                sumRMS += voltage*voltage
+                samples += 1
+                
+            except ValueError as e:
+                print(f"Error parsing data: {e}")
+        else:
+            if time.time() - last_receive_time > idle_timeout:
+                print("Timeout: No data received.")
+                break
+    
+    rms = sqrt(sumRMS/samples)
+    return rms
+
+def calculate_coefficients(TRUErms, SensorRMS):
+    minTRUErms = min(TRUErms)
+    maxTRUErms = max(TRUErms)
+    minSensorRMS = min(SensorRMS)
+    maxSensorRMS = max(SensorRMS)
+    
+    a = (maxTRUErms-minTRUErms)/(maxSensorRMS-minSensorRMS)
+    b = minTRUErms - minSensorRMS*a   
+    
+    return a, b
+
+def main():
+    try:
+        port = find_serial_port()
+        ser = connect_serial(port)
+    except Exception as e:
+        print(e)
+        return
+    
+    TRUErms = []
+    SensorRMS = []
+    sensor = "V"
+    continueCalibration = True
+    flagCurrent = False
+    
+    while continueCalibration:
+        channel = set_channel()
+        for i in range(2):
+            if not flagCurrent:
+                rms = get_rms_value()
+                print(f"Calibrating Voltage, channel {channel}, Vrms: {rms}")
+                sensor = "V"
+            else:
+                rms = getIrms()  # Corrigido
+                print(f"Calibrating Current, channel {channel}, Irms: {rms}")
+                flagCurrent = False
+                sensor = "I"
+                
+            TRUErms.append(rms)
+            ser.write(b"Calibration")
+            while True:
+                send = ser.readline().decode('utf-8').rstrip()
+                print(f"Board response: {send}")
+                
+                if send == "Time Out":
+                    continueCalibration = False
+                    break
+                
+                if send == "OK_1":
+                    send = f"{channel}|{sensor}"
+                    print(f"Sending command: {send}")
+                    ser.write(send.encode())
+                    
+                    rms = collect_dynamic_data(ser)
+                    SensorRMS.append(rms)
+                    break
+        
+        # Calcula os coeficientes para as leituras RMS
+        a, b = calculate_coefficients(TRUErms, SensorRMS)
+        
+        # Sincroniza com a TASK de inserção dos coeficientes
+        ser.write(b"InsertCoefficients")
+        while True:
+                send = ser.readline().decode('utf-8').rstrip()
+                print(f"Board response: {send}")  # Debug sync response
+                
+                if send == "Time Out":
+                    continueCalibration = False
+                    break
+                
+                if send == "OK":
+                    send = f"{channel}|{sensor}"
+                    print(f"Sending command: {send}")
+                    ser.write(send.encode())
+                    
+                    
+                if send == "OK_":
+                    send = f"{a:.2f}|{b:.2f}"
+                    print(f"Sending coefficients: {send}")
+                    ser.write(send.encode())
+                    break
+        # Transition to Current Calibration
+        if not flagCurrent:
+            if sensor == "V":
+                    if input("Calibrate Current this channel? (Y/N): ").strip().upper() == "Y":
+                        flagCurrent = True
+            else:
+                if input("Calibrate another channel? (Y/N): ").strip().upper() == "N":
+                    channel = set_channel()
+                    continueCalibration = False
+                    break
+          
+    ser.close()
+
+if __name__ == "__main__":
+    main()

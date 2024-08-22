@@ -182,24 +182,35 @@ float ADSreads::readRMS(int channel, float a, float b)
     // if (avaliable[channel])
     // {
 
-    // TODO: verificar de outra forma refinada 
-    if(a == 1 && b == 0){ // Canal não calibrado
+    // TODO: verificar de outra forma refinada
+    if (a == 1 && b == 0)
+    { // Canal não calibrado
         return 0;
     }
 
-    int index = 0;
-    float sumRMS = 0;
-    while (index < (samples + 1))
+    float sum = 0;
+    for (int i = 0; i < samples; i++)
     {
-        float voltage = readInst(channel);
-        // Serial.println(String(a * voltage + b));
-        sumRMS += (a * voltage + b) * (a * voltage + b);
-        index++;
+        float instValue = readInst(channel);
+        // Aplicar coeficientes de calibração
+        sum += instValue * instValue;
     }
-    float RMS = sumRMS / samples;
-    RMS = sqrt(RMS);
+    float trueRMS = sqrt(sum / samples);
+    trueRMS = trueRMS*a + b;
+    return trueRMS;
 
-    return RMS;
+    // while (index < (samples + 1))
+    // {
+    //     float voltage = readInst(channel);
+    //     // Serial.println(String(a * voltage + b));
+    //     sumRMS += voltage * voltage;
+    //     index++;
+    // }
+    // float RMS = sumRMS / index;
+    // RMS = sqrt(RMS);
+    // RMS = a * RMS + b;
+
+    // return RMS;
     // }
     // else
     // {

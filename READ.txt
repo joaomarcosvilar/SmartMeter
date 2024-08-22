@@ -67,7 +67,8 @@ comunicação com o esp32 por via webservice para os dados de configuração
 
 
 ONDE PAREI:
-calibração não está ocorrendo corretamente: calculo de corrente Irms nominal está errado
+calibração não está ocorrendo corretamente: calculo de corrente Irms saída está errada
+  Leitura real: 1.13A, leitura do sensor: 0.53A
 
 
 links importantes:
