@@ -35,6 +35,7 @@ void vMeshSend(void *pvParameters);
 #define SAMPLES 2680
 #define TimeOut 10000 // em milisegundos
 #define TimeMesh 5000 // em milisegundos
+#define DEGREE 3      // Grau do polinimio de calibração + 1
 
 void setup()
 {
@@ -43,8 +44,8 @@ void setup()
   attachInterrupt(digitalPinToInterrupt(vREADY_PIN), onVReady, FALLING);
   attachInterrupt(digitalPinToInterrupt(iREADY_PIN), onIReady, FALLING);
 
-  SensorV.begin();
-  SensorI.begin();
+  SensorV.begin(0);
+  SensorI.begin(0);
 
   lora.begin(9600);
 
@@ -74,12 +75,12 @@ void vTranslateSerial(void *pvParameters)
     if (Serial.available() > 0)
     {
       inputString = Serial.readString();
+      Serial.flush();
       if (inputString.length() > 0)
       {
         // Serial.println("Received command: " + inputString); // Debugging
         if (inputString.equals("Calibration"))
         {
-          // xTaskNotifyGive(CalibrationHandle);
           xTaskCreate(vCalibration, "Calibration", configMINIMAL_STACK_SIZE + 2048, NULL, 2, &CalibrationHandle);
         }
 
@@ -94,38 +95,34 @@ void vTranslateSerial(void *pvParameters)
         }
 
         // Debug
-        // if (inputString.equals("Format SPFFIS"))
-        // {
-        //   files.format();
-        // }
+        if (inputString.equals("Format SPFFIS"))
+        {
+          files.format();
+        }
+
         if (inputString.equals("List Calibration"))
         {
-          Serial.println("aqui");
           files.list("/calibration.txt");
         }
+
         if (inputString.equals("InstRead"))
         {
-          int i = 0;
-          while (i < SAMPLES)
-          {
-            Serial.println((SensorI.readInst(0)), 6);
-            i++;
+          for(int i = 0; i < SAMPLES; i++){
+            Serial.print(SensorI.readInst(0), 6); Serial.print("|");
           }
         }
 
-        inputString = "";
-        Serial.flush();
+        // inputString = "";
       }
     }
     vTaskDelay(pdMS_TO_TICKS(100)); // Delay para liberar CPU
+    // if ((millis() - start) < TimeMesh)
+    // {
+    //   start = millis();
+    //   xTaskCreate(vMeshSend, "MeshSend", configMINIMAL_STACK_SIZE + 3072, NULL, 1, &MeshSendHandle);
+    // }
   }
   // A cada TimeMesh/1000 segundos ele envia um pacote de dados para o LoraMesh
-  if ((millis() - start) < TimeMesh)
-  {
-    start = millis();
-    // xTaskNotifyGive(MeshSendHandle);
-    xTaskCreate(vMeshSend, "MeshSend", configMINIMAL_STACK_SIZE + 3072, NULL, 1, &MeshSendHandle);
-  }
 }
 
 /*
@@ -171,6 +168,7 @@ void vTranslateSerial(void *pvParameters)
 void vCalibration(void *pvParameters)
 {
   Serial.println("OK_1");
+  Serial.flush();
 
   int channel = 0;
   bool alt = false;
@@ -182,14 +180,15 @@ void vCalibration(void *pvParameters)
     if (Serial.available() > 0)
     {
       String inputString = Serial.readString();
+      Serial.flush();
       int limiter = inputString.indexOf('|');
       String str_channel = inputString.substring(0, limiter);
       String sensor = inputString.substring(limiter + 1);
       channel = str_channel.toInt();
-      inputString = "";
 
       if ((!(sensor.equals("V")) && !(sensor.equals("I"))))
       {
+        Serial.println("aqui");
         break;
       }
 
@@ -204,26 +203,26 @@ void vCalibration(void *pvParameters)
         }
 
         Serial.println("OK_2"); // Pausa a captura de dados pelo Calibration.py
+        Serial.flush();
         break;
       }
     }
-    vTaskDelay(pdMS_TO_TICKS(100));
     if ((millis() - starttime) >= TimeOut)
     {
       break;
     }
+    Serial.flush();
   }
-  Serial.flush();
   vTaskDelete(NULL);
 }
 
 /*
-  TASK 
-  FUNÇÂO: 
+  TASK
+  FUNÇÂO:
 */
 void vInsertCoefficients(void *pvParameters)
 {
-  
+
   int channel = 0;
   bool alt = false;
 
@@ -235,59 +234,97 @@ void vInsertCoefficients(void *pvParameters)
     if (Serial.available() > 0)
     {
       String inputString = Serial.readString();
+      Serial.flush();
       int limiter = inputString.indexOf('|');
+      if (limiter == -1)
+      {
+        // Serial.println("Error: Delimitador '|' não encontrado.");
+        // Serial.println(inputString);
+        Serial.flush();
+        break;
+      }
+
       String str_channel = inputString.substring(0, limiter);
       String sensor = inputString.substring(limiter + 1);
       channel = str_channel.toInt();
-      inputString = "";
-      Serial.print(channel);Serial.print(" "); Serial.println(sensor);
+      // Serial.print(channel);
+      // Serial.print(" ");
+      // Serial.println(sensor);
       if ((!(sensor.equals("V")) && !(sensor.equals("I"))))
       {
-        Serial.println("Error aqui");
+        // Serial.println("Error aqui");
+        // Serial.println(inputString);
+        Serial.flush();
         break;
       }
-      Serial.flush();
-      Serial.print("OK_");
 
+      Serial.print("OK_");
+      Serial.flush();
       starttime = millis();
       while (true)
       {
         if (Serial.available() > 0)
         {
-          inputString = Serial.readString();
-          int limiter = inputString.indexOf('|');
-          String str_a = inputString.substring(0, limiter);
-          String str_b = inputString.substring(limiter + 1);
-          inputString = "";
+          String inputString = Serial.readString(); // Lê a string recebida
+          Serial.flush();
+          int startPos = 0;
+          int delimiterPos = inputString.indexOf('|');
+          int coefCount = 0;
+          float coefficients[DEGREE];
 
-          float a = str_a.toFloat();
-          float b = str_b.toFloat();
-          Serial.print(a,6);Serial.print(" ");Serial.println(b,6);
-          files.insCoef(sensor, channel, a, b);
+          while (delimiterPos > 0 && coefCount < DEGREE)
+          {
+            // Extraia o coeficiente da substring
+            String coefStr = inputString.substring(startPos, delimiterPos);
+            coefficients[coefCount] = coefStr.toFloat(); // Converta para float e armazene
+            coefCount++;
+            Serial.println(inputString);
+
+            // Atualize a posição de início e encontre o próximo delimitador
+            startPos = delimiterPos + 1;
+            delimiterPos = inputString.indexOf('|', startPos);
+          }
+
+          // Não se esqueça de pegar o último coeficiente após o último '|'
+          if (coefCount < DEGREE)
+          {
+            String coefStr = inputString.substring(startPos);
+            coefficients[coefCount] = coefStr.toFloat();
+          }
+
+          // DEBUG
+          for (int i = 0; i < DEGREE; i++)
+          {
+            Serial.print("Coeficiente ");
+            Serial.print(i);
+            Serial.print(": ");
+            Serial.println(coefficients[i]);
+          };
+          Serial.flush();
+          files.insCoef(sensor, channel, coefficients);
           break;
         }
+        Serial.flush();
 
         if ((millis() - starttime) >= TimeOut)
         {
-          Serial.println("Time Out");
+          // Serial.println("Time Out");
           break;
         }
-        vTaskDelay(pdMS_TO_TICKS(100));
+        // vTaskDelay(pdMS_TO_TICKS(100));
+        Serial.flush();
       }
 
-      
       break;
     }
     if ((millis() - starttime) >= TimeOut)
     {
       break;
     }
-    vTaskDelay(pdMS_TO_TICKS(100));
+    Serial.flush();
   }
   vTaskDelete(NULL);
 }
-
-// }
 
 /*
   TASK de empacotamento de envio dos dados dos sensores pelo LoraMesh
@@ -300,6 +337,7 @@ void vMeshSend(void *pvParameters)
   bool alt;
   String sensor;
   DynamicJsonDocument data(160);
+  float coefficients[DEGREE];
   for (int i = 0; i < 2; i++)
   {
     if (i == 0)
@@ -314,9 +352,12 @@ void vMeshSend(void *pvParameters)
     }
     for (int j = 0; j < 3; j++)
     {
-      float a = files.getCoef(sensor, j, "a");
-      float b = files.getCoef(sensor, j, "b");
-      float rmsValue = !alt ? SensorV.readRMS(j, a, b) : SensorI.readRMS(j, a, b);
+      for (int c = 0; c < DEGREE; c++)
+      {
+        coefficients[c] = files.getCoef(sensor, j, c);
+      }
+
+      float rmsValue = !alt ? SensorV.readRMS(j, coefficients) : SensorI.readRMS(j, coefficients);
       Serial.println(rmsValue);
       data[sensor][j] = rmsValue;
     }

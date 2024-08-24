@@ -10,13 +10,13 @@ class ADSreads
 public:
     Adafruit_ADS1115 ads;
     ADSreads(int _READY_PIN, uint8_t _adress);
-    void begin();
+    void begin(int gain);
     float readFreq(int channel);
     float readInst(int channel);
-    float readRMS(int channel, float a, float b);
+    float readRMS(int channel, float coefficients[]);
     void IRAM_ATTR onNewDataReady(); // Função de Interrupção do pino ALRT
     float readADC(int channel);
-    float readRealIns(int channel, float a, float b);
+    // float readRealIns(int channel, float a, float b);
 
 private:
     int READY_PIN;                           // Pino ALRT do ADS1115
@@ -46,7 +46,7 @@ ADSreads::ADSreads(int READY_PIN, uint8_t _adress)
 {
 }
 
-void ADSreads::begin()
+void ADSreads::begin(int gain)
 {
     if (!ads.begin(adress))
     {
@@ -61,7 +61,12 @@ void ADSreads::begin()
         // Serial.println(adress);
     }
 
-    // ads.setGain(GAIN_TWOTHIRDS); // 2/3x gain +/- 6.144V  1 bit = 0.1875mV   <- fazendo ocorrer um overshoot na leitura
+    if(gain == 1){
+        ads.setGain(GAIN_TWOTHIRDS); //DEFAULt 2/3x gain +/- 6.144V  1 bit = 0.1875mV
+    }
+    if(gain == 2){
+        ads.setGain(GAIN_TWO); // 16x gain  +/- 0.256V  1 bit = 0.125mV  0.0078125mV
+    }
     ads.setDataRate(dataRate);
 
     pinMode(READY_PIN, INPUT_PULLUP);
@@ -104,37 +109,30 @@ float ADSreads::readFreq(int channel)
     int zeroCrossings = 0;
     int index = 0;
     float voltage = 0, previousVoltage = 0;
-    if (avaliable[channel])
+    setChannel(channel);
+    
+    while (index < (samples + 1))
     {
-        setChannel(channel);
-        while (index < (samples + 1))
-        {
-            voltage += readInst(channel);
-            index++;
-        }
-        float mean = voltage / samples;
-
-        index = 0;
-        unsigned long startMillis = millis();
-        while (index < (samples + 1))
-        {
-            voltage = readInst(channel);
-            if ((previousVoltage > mean && voltage <= mean) || (previousVoltage < mean && voltage >= mean))
-            {
-                zeroCrossings++;
-            }
-            previousVoltage = voltage;
-            index++;
-        }
-
-        float frequency = (zeroCrossings / 2.0) / ((millis() - startMillis) / 1000.0);
-        return frequency;
+        voltage += readInst(channel);
+        index++;
     }
-    else
+    float mean = voltage / samples;
+
+    index = 0;
+    unsigned long startMillis = millis();
+    while (index < (samples + 1))
     {
-        Serial.println("Sensor não reconhecido!RMS");
-        return 0;
+        voltage = readInst(channel);
+        if ((previousVoltage > mean && voltage <= mean) || (previousVoltage < mean && voltage >= mean))
+        {
+            zeroCrossings++;
+        }
+        previousVoltage = voltage;
+        index++;
     }
+
+    float frequency = (zeroCrossings / 2.0) / ((millis() - startMillis) / 1000.0);
+    return frequency;
 }
 
 float ADSreads::readInst(int channel)
@@ -149,74 +147,39 @@ float ADSreads::readInst(int channel)
         {
             newData = false;
             float voltage = ads.computeVolts(ads.getLastConversionResults());
-            // if (voltage < voltMin)
-            // {
-            //     voltMin = voltage;
-            // }
-            // if (voltage > voltMax)
-            // {
-            //     voltMax = voltage;
-            // }
-            // if ((voltMax - voltMin) < toleranceVoltage)
-            // {
-            //     avaliable[channel] = false;
-            //     Serial.println("Tolerancia não alcançada.");
-            //     return 0;
-            // }
-            // Serial.println(voltage);
             return voltage;
         }
     }
-    Serial.println("ADC error in readInst");
     return 0;
-    // }
-    // else
-    // {
-    //     Serial.println("Sensor não reconhecido!INST");
-    //     return 0;
-    // }
 }
 
-float ADSreads::readRMS(int channel, float a, float b)
+float ADSreads::readRMS(int channel, float coefficients[])
 {
-    // if (avaliable[channel])
-    // {
+    int DEGREE = 3;
 
-    // TODO: verificar de outra forma refinada
-    if (a == 1 && b == 0)
-    { // Canal não calibrado
-        return 0;
-    }
+    // Verifica se todos os coeficientes estão no valor padrão 0
+    // int index = 0;
+    // for(int i = 0; i< DEGREE ;i++){
+    //     if(coefficients[i]==0) index++;
+    // }
+    // if(index == 4) return 0;
+
 
     float sum = 0;
     for (int i = 0; i < samples; i++)
     {
         float instValue = readInst(channel);
-        // Aplicar coeficientes de calibração
         sum += instValue * instValue;
     }
-    float trueRMS = sqrt(sum / samples);
-    trueRMS = trueRMS*a + b;
+    float sensorRMS = sqrt(sum / samples);
+    // Serial.println(sensorRMS,6);
+    // Serial.print(coefficients[0]);Serial.print(";");Serial.print(coefficients[1]);Serial.print(";");Serial.println(coefficients[2]);
+    // Usando polinomio de grau 3
+    float trueRMS = coefficients[2] 
+                 + coefficients[1] * sensorRMS 
+                 + coefficients[0] * sensorRMS*sensorRMS;
     return trueRMS;
 
-    // while (index < (samples + 1))
-    // {
-    //     float voltage = readInst(channel);
-    //     // Serial.println(String(a * voltage + b));
-    //     sumRMS += voltage * voltage;
-    //     index++;
-    // }
-    // float RMS = sumRMS / index;
-    // RMS = sqrt(RMS);
-    // RMS = a * RMS + b;
-
-    // return RMS;
-    // }
-    // else
-    // {
-    //     Serial.println("Sensor não reconhecido!");
-    //     return 0;
-    // }
 }
 
 float ADSreads::readADC(int channel)
@@ -244,8 +207,8 @@ float ADSreads::readADC(int channel)
     }
 }
 
-float ADSreads::readRealIns(int channel, float a, float b)
-{
-    float voltage = readInst(channel);
-    return (a * voltage + b);
-}
+// float ADSreads::readRealIns(int channel, float a, float b)
+// {
+//     float voltage = readInst(channel);
+//     return (a * voltage + b);
+// }

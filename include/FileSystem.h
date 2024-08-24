@@ -14,8 +14,8 @@ public:
     MySPIFFS();
     void begin();
     void list(String path);
-    void insCoef(String _sensor, int channel, float a, float b);
-    float getCoef(String _sensor, int channel, String coefType);
+    void insCoef(String _sensor, int channel, float coefficients[]);
+    float getCoef(String _sensor, int channel, int coefficient);
     void format();
 
 private:
@@ -24,9 +24,8 @@ private:
 };
 #endif
 
-#define DEFAULT_A 1.0
-#define DEFAULT_B 0.0
-
+#define DEFAULT 0.0
+#define DEGREE 3 // Grau do polinimio de calibração + 1
 
 MySPIFFS::MySPIFFS() {}
 
@@ -40,10 +39,10 @@ void MySPIFFS::begin()
     {
         initCalibration();
     }
-    else
-    {
-        // list("/calibration.txt");
-    }
+    // else
+    // {
+    // list("/calibration.txt");
+    // }
 }
 
 void MySPIFFS::initCalibration()
@@ -64,8 +63,10 @@ void MySPIFFS::initCalibration()
         }
         for (int j = 0; j < 3; j++)
         {
-            data[sensor][j]["a"] = DEFAULT_A;
-            data[sensor][j]["b"] = DEFAULT_B;
+            for (int c = 0; c < DEGREE; c++)
+            {
+                data[sensor][j][c] = DEFAULT;
+            }
         }
     }
 
@@ -91,16 +92,17 @@ void MySPIFFS::list(String path)
     file.close();
 }
 
-void MySPIFFS::insCoef(String _sensor, int channel, float a, float b)
+void MySPIFFS::insCoef(String _sensor, int channel, float coefficients[])
 {
     File file = SPIFFS.open("/calibration.txt", FILE_READ);
     DynamicJsonDocument data(384);
     DeserializationError error = deserializeJson(data, file);
     // error can be used for debugging
     file.close();
-
-    data[_sensor][channel]["a"] = a;
-    data[_sensor][channel]["b"] = b;
+    for (int i = 0; i < DEGREE; i++)
+    {
+        data[_sensor][channel][i] = coefficients[i];
+    }
 
     file = SPIFFS.open("/calibration.txt", FILE_WRITE);
     String str;
@@ -109,15 +111,18 @@ void MySPIFFS::insCoef(String _sensor, int channel, float a, float b)
     file.close();
 }
 
-float MySPIFFS::getCoef(String _sensor, int channel, String coefType)
+float MySPIFFS::getCoef(String _sensor, int channel, int coefficient)
 {
     File file = SPIFFS.open("/calibration.txt", FILE_READ);
     DynamicJsonDocument data(384);
     DeserializationError error = deserializeJson(data, file);
     // error can be used for debugging
     file.close();
-
-    return data[_sensor][channel][coefType];
+    // serializeJson(data,Serial);
+    // Serial.println();
+    float dado = data[_sensor][channel][coefficient];
+    // Serial.println(dado,6);
+    return dado;
 }
 
 void MySPIFFS::format()

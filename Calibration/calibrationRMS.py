@@ -4,7 +4,7 @@ import serial
 import serial.tools.list_ports
 from math import sqrt
 import numpy as np
-from sklearn.linear_model import LinearRegression
+# from sklearn.linear_model import LinearRegression
 
 
 def find_serial_port():
@@ -61,7 +61,7 @@ def set_channel():
         except ValueError:
             print("Invalid input. Please enter a numeric value.")
 
-def collect_dynamic_data(ser):
+def collect_dynamic_data(ser,channel,sensor):
     rms = 0
     samples = 0
     sumRMS = 0
@@ -70,7 +70,7 @@ def collect_dynamic_data(ser):
 
     while True:
         data = ser.readline().decode('utf-8').rstrip()
-        # print(data)
+        print(f"Board response: {data}")
         if data == "Invalid sensor input.":
             # print("Invalid sensor input.")
             break
@@ -88,24 +88,24 @@ def collect_dynamic_data(ser):
                 
             except ValueError as e:
                 print(f"Error parsing data: {e}")
-        else:
+        else:    
             if time.time() - last_receive_time > idle_timeout:
-                print("Timeout: No data received.")
-                break
+                print("Time Out.")
+                return 0.0
+            
     
     rms = sqrt(sumRMS/samples)
     return rms
 
 def calculate_coefficients(TRUErms, SensorRMS):
-    minTRUErms = min(TRUErms)
-    maxTRUErms = max(TRUErms)
-    minSensorRMS = min(SensorRMS)
-    maxSensorRMS = max(SensorRMS)
+    degree = 2
+    X = np.array(SensorRMS)
+    print(X)
+    Y = np.array(TRUErms)
+    print(Y)
+    coefficients = np.polyfit(X,Y,degree)
     
-    a = (maxTRUErms-minTRUErms)/(maxSensorRMS-minSensorRMS)
-    b = minTRUErms - minSensorRMS*a   
-    
-    return a, b
+    return coefficients
 
 def main():
     try:
@@ -120,10 +120,15 @@ def main():
     sensor = "V"
     continueCalibration = True
     flagCurrent = False
+    READS = 6
     
     while continueCalibration:
         channel = set_channel()
-        for i in range(2):
+        
+        if input("Calibrate Current this channel? (Y/N): ").strip().upper() == "Y":
+            flagCurrent = True
+        
+        for i in range(READS):
             if not flagCurrent:
                 rms = get_rms_value()
                 print(f"Calibrating Voltage, channel {channel}, Vrms: {rms}")
@@ -148,13 +153,13 @@ def main():
                     send = f"{channel}|{sensor}"
                     print(f"Sending command: {send}")
                     ser.write(send.encode())
-                    
-                    rms = collect_dynamic_data(ser)
-                    SensorRMS.append(rms)
-                    break
+                    rms = collect_dynamic_data(ser,channel,sensor)
+                    if rms != 0.0:
+                        SensorRMS.append(rms)
+                        break
         
         # Calcula os coeficientes para as leituras RMS
-        a, b = calculate_coefficients(TRUErms, SensorRMS)
+        coefficients = calculate_coefficients(TRUErms, SensorRMS)
         
         # Sincroniza com a TASK de inserção dos coeficientes
         ser.write(b"InsertCoefficients")
@@ -173,17 +178,23 @@ def main():
                     
                     
                 if send == "OK_":
-                    send = f"{a:.2f}|{b:.2f}"
-                    print(f"Sending coefficients: {send}")
+                    send = f"{coefficients[0]:.2f}|{coefficients[1]:.2f}|{coefficients[2]:.2f}"
+                    print(f"Enviando coeficientes: {send}")
                     ser.write(send.encode())
+                    time.sleep(1)
                     break
         # Transition to Current Calibration
         if not flagCurrent:
             if sensor == "V":
                     if input("Calibrate Current this channel? (Y/N): ").strip().upper() == "Y":
                         flagCurrent = True
+                    if input("Calibrate another channel? (Y/N): ").strip().upper() == "Y":
+                        channel = set_channel()
+                        continueCalibration = False
+                        break
+                        
             else:
-                if input("Calibrate another channel? (Y/N): ").strip().upper() == "N":
+                if input("Calibrate another channel? (Y/N): ").strip().upper() == "Y":
                     channel = set_channel()
                     continueCalibration = False
                     break
