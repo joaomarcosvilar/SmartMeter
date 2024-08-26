@@ -61,10 +61,12 @@ void ADSreads::begin(int gain)
         // Serial.println(adress);
     }
 
-    if(gain == 1){
-        ads.setGain(GAIN_TWOTHIRDS); //DEFAULt 2/3x gain +/- 6.144V  1 bit = 0.1875mV
+    if (gain == 1)
+    {
+        ads.setGain(GAIN_TWOTHIRDS); // DEFAULt 2/3x gain +/- 6.144V  1 bit = 0.1875mV
     }
-    if(gain == 2){
+    if (gain == 2)
+    {
         ads.setGain(GAIN_TWO); // 16x gain  +/- 0.256V  1 bit = 0.125mV  0.0078125mV
     }
     ads.setDataRate(dataRate);
@@ -110,7 +112,7 @@ float ADSreads::readFreq(int channel)
     int index = 0;
     float voltage = 0, previousVoltage = 0;
     setChannel(channel);
-    
+
     while (index < (samples + 1))
     {
         voltage += readInst(channel);
@@ -158,12 +160,14 @@ float ADSreads::readRMS(int channel, float coefficients[])
     int DEGREE = 3;
 
     // Verifica se todos os coeficientes estão no valor padrão 0
-    // int index = 0;
-    // for(int i = 0; i< DEGREE ;i++){
-    //     if(coefficients[i]==0) index++;
-    // }
-    // if(index == 4) return 0;
-
+    int index = 0;
+    for (int i = 0; i < DEGREE; i++)
+    {
+        if (coefficients[i] == 0)
+            index++;
+    }
+    if (index == DEGREE)
+        return 0;
 
     float sum = 0;
     for (int i = 0; i < samples; i++)
@@ -172,14 +176,22 @@ float ADSreads::readRMS(int channel, float coefficients[])
         sum += instValue * instValue;
     }
     float sensorRMS = sqrt(sum / samples);
-    // Serial.println(sensorRMS,6);
+    Serial.println(sensorRMS,6);
     // Serial.print(coefficients[0]);Serial.print(";");Serial.print(coefficients[1]);Serial.print(";");Serial.println(coefficients[2]);
     // Usando polinomio de grau 3
-    float trueRMS = coefficients[2] 
-                 + coefficients[1] * sensorRMS 
-                 + coefficients[0] * sensorRMS*sensorRMS;
-    return trueRMS;
+    float trueRMS = 0;
 
+    // Para a regressão linear da corrente (Apresentou erro menor +-0.1A)
+    
+    if (coefficients[2] == 0.0)
+    {
+        trueRMS = coefficients[1] + coefficients[0] * sensorRMS ;
+    }
+    else
+    {
+        trueRMS = coefficients[2] + coefficients[1] * sensorRMS + coefficients[0] * sensorRMS * sensorRMS;
+    }
+    return trueRMS;
 }
 
 float ADSreads::readADC(int channel)

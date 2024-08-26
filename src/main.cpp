@@ -61,6 +61,8 @@ void loop()
 {
 }
 
+//_________________________________TODO: recomentar___________________________________
+
 /*
   TASK de trandução de Serial para chamada de tasks equivalentes ao chamado.
 
@@ -89,6 +91,7 @@ void vTranslateSerial(void *pvParameters)
           xTaskCreate(vInsertCoefficients, "InsertCoefficients", configMINIMAL_STACK_SIZE + 2048, NULL, 2, &InsertCoefficientsHandle);
         }
 
+        // TODO: ajustar para timer acionar o envio e quando em outra task, aguardar a outra finalizar para essa entrar
         if (inputString.equals("LoraMesh"))
         {
           xTaskCreate(vMeshSend, "MeshSend", configMINIMAL_STACK_SIZE + 3072, NULL, 1, &MeshSendHandle);
@@ -116,13 +119,7 @@ void vTranslateSerial(void *pvParameters)
       }
     }
     vTaskDelay(pdMS_TO_TICKS(100)); // Delay para liberar CPU
-    // if ((millis() - start) < TimeMesh)
-    // {
-    //   start = millis();
-    //   xTaskCreate(vMeshSend, "MeshSend", configMINIMAL_STACK_SIZE + 3072, NULL, 1, &MeshSendHandle);
-    // }
   }
-  // A cada TimeMesh/1000 segundos ele envia um pacote de dados para o LoraMesh
 }
 
 /*
@@ -131,7 +128,7 @@ void vTranslateSerial(void *pvParameters)
   FUNÇÂO: Funciona em conjunto com o programa calibration.py na pasta Calibration para
   calibração automática dos canais dos sensores desejados pelos usuário.
 
-  USO:
+  USO: 
     1. Conecte a Carga de Calibração: Conecte uma lâmpada incandescente de potência
     conhecida (ex.: 60W) à rede elétrica de 220V, entre fase e neutro. Esta lâmpada
     servirá como referência para a calibração do sensor de corrente.
@@ -356,9 +353,8 @@ void vMeshSend(void *pvParameters)
       {
         coefficients[c] = files.getCoef(sensor, j, c);
       }
-
       float rmsValue = !alt ? SensorV.readRMS(j, coefficients) : SensorI.readRMS(j, coefficients);
-      Serial.println(rmsValue);
+      // Serial.println(rmsValue);
       data[sensor][j] = rmsValue;
     }
   }

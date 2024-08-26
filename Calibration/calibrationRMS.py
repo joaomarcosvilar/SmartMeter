@@ -7,6 +7,10 @@ import numpy as np
 # from sklearn.linear_model import LinearRegression
 
 
+# OBS.: funcionando adequadamente para apenas Tensão, corrente está sendo feita manualmente
+# Melhores coeficientes:    V: -9035,47880,-63221
+#                           I: 1331.170044,-3398.409912,0
+
 def find_serial_port():
     print('Searching for serial ports...')
     ports = serial.tools.list_ports.comports(include_links=False)
@@ -127,6 +131,7 @@ def main():
         
         if input("Calibrate Current this channel? (Y/N): ").strip().upper() == "Y":
             flagCurrent = True
+            READS = 3
         
         for i in range(READS):
             if not flagCurrent:

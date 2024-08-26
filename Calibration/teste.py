@@ -13,11 +13,12 @@ def polynomial_regression(TRUErms, SensorRMS, degree=2):
     return coefficients
 
 def main():
-    TRUErms = [211.50,207.70,203.00,201.55,198.15,217,184.4]
-    SensorRMS = [2.648809,2.646482,2.639234,2.635001,2.629366,2.652624,2.588314]
+    TRUErms = [7.540,5.415,5.410]
+    SensorRMS = [2.560065,2.559481,2.558882]
+
 
     # Grau do polinômio
-    degree = 3
+    degree = 1
 
     # Calcula os coeficientes polinomiais
     coefficients = polynomial_regression(TRUErms, SensorRMS, degree)
@@ -26,14 +27,14 @@ def main():
     print("Coeficientes:", coefficients)
 
     # Exemplo de envio dos coeficientes
-    send = f"{coefficients[0]:.2f}|{coefficients[1]:.2f}|{coefficients[2]:.2f}"
+    send = f"{coefficients[0]:.2f}|{coefficients[1]:.2f}"
     print(f"Enviando coeficientes: {send}")
-    test_value = 2.609957
+    test_value = SensorRMS[0]
 
-    value = (coefficients[3] 
-                 + coefficients[2] * test_value 
-                 + coefficients[1] * test_value**2 
-                 + coefficients[0] * test_value**3
+    value = (coefficients[1] 
+                 + coefficients[0] * test_value 
+                #  + coefficients[0] * test_value**2 
+                #  + coefficients[0] * test_value**3
                  )
     print(value)
     
