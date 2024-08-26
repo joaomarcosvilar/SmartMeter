@@ -1,5 +1,5 @@
-Mestre: 10142 COM9
-Escravo: 10152 COM6
+Mestre: 10152 COM9
+Escravo: 10142 COM6
 
 _________________________________________________________________________
 Calibração sensor de corrente:

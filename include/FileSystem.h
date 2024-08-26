@@ -45,11 +45,14 @@ void MySPIFFS::begin()
     // }
 }
 
+
+/*
+    Caso não exista o arquivo calibration.py, vai criar no formato JSON com valores
+    padrões de DEFAULT.
+*/
 void MySPIFFS::initCalibration()
 {
     DynamicJsonDocument data(384);
-
-    // Serial.println("Initializing calibration.txt");
 
     for (int i = 0; i < 2; i++)
     {
@@ -77,6 +80,10 @@ void MySPIFFS::initCalibration()
     file.close();
 }
 
+/*
+    Mostra o conteúdo do arquivo no SPFFIS do ESP. Argumento é o caminho e 
+    o nome do arquivo desejado.
+*/
 void MySPIFFS::list(String path)
 {
     File file = SPIFFS.open(path, FILE_READ);
@@ -92,6 +99,10 @@ void MySPIFFS::list(String path)
     file.close();
 }
 
+
+/*
+    Insere os coeficientes de calibração dos sensores.
+*/
 void MySPIFFS::insCoef(String _sensor, int channel, float coefficients[])
 {
     File file = SPIFFS.open("/calibration.txt", FILE_READ);
@@ -111,6 +122,9 @@ void MySPIFFS::insCoef(String _sensor, int channel, float coefficients[])
     file.close();
 }
 
+/*
+    Lê e retorna os coeficientes de calibração dos sensores.
+*/
 float MySPIFFS::getCoef(String _sensor, int channel, int coefficient)
 {
     File file = SPIFFS.open("/calibration.txt", FILE_READ);
@@ -125,6 +139,9 @@ float MySPIFFS::getCoef(String _sensor, int channel, int coefficient)
     return dado;
 }
 
+/*
+    Formata a memória do ESP32.
+*/
 void MySPIFFS::format()
 {
     Serial.println("Erasing SPIFFS...");

@@ -44,8 +44,8 @@ void setup()
   attachInterrupt(digitalPinToInterrupt(vREADY_PIN), onVReady, FALLING);
   attachInterrupt(digitalPinToInterrupt(iREADY_PIN), onIReady, FALLING);
 
-  SensorV.begin(0);
-  SensorI.begin(0);
+  SensorV.begin();
+  SensorI.begin();
 
   lora.begin(9600);
 
@@ -91,34 +91,37 @@ void vTranslateSerial(void *pvParameters)
           xTaskCreate(vInsertCoefficients, "InsertCoefficients", configMINIMAL_STACK_SIZE + 2048, NULL, 2, &InsertCoefficientsHandle);
         }
 
-        // TODO: ajustar para timer acionar o envio e quando em outra task, aguardar a outra finalizar para essa entrar
-        if (inputString.equals("LoraMesh"))
-        {
-          xTaskCreate(vMeshSend, "MeshSend", configMINIMAL_STACK_SIZE + 3072, NULL, 1, &MeshSendHandle);
-        }
+        // if (inputString.equals("LoraMesh"))
+        // {
+        //   xTaskCreate(vMeshSend, "MeshSend", configMINIMAL_STACK_SIZE + 3072, NULL, 3, &MeshSendHandle);
+        // }
 
         // Debug
-        if (inputString.equals("Format SPFFIS"))
-        {
-          files.format();
-        }
+        // if (inputString.equals("Format SPFFIS"))
+        // {
+        //   files.format();
+        // }
 
-        if (inputString.equals("List Calibration"))
-        {
-          files.list("/calibration.txt");
-        }
-
-        if (inputString.equals("InstRead"))
-        {
-          for(int i = 0; i < SAMPLES; i++){
-            Serial.print(SensorI.readInst(0), 6); Serial.print("|");
-          }
-        }
-
-        // inputString = "";
+        // if (inputString.equals("List Calibration"))
+        // {
+        //   files.list("/calibration.txt");
+        // }
+        //   if (inputString.equals("InstRead"))
+        //   {
+        //     for (int i = 0; i < SAMPLES; i++)
+        //     {
+        //       Serial.print(SensorI.readInst(0), 6);
+        //       Serial.print("|");
+        //     }
+        //   }
       }
     }
-    vTaskDelay(pdMS_TO_TICKS(100)); // Delay para liberar CPU
+    if (millis() - start > 10000)
+    {
+      xTaskCreate(vMeshSend, "MeshSend", configMINIMAL_STACK_SIZE + 3072, NULL, 3, &MeshSendHandle);
+      start = millis();
+    }
+    vTaskDelay(pdMS_TO_TICKS(100));
   }
 }
 
@@ -128,39 +131,25 @@ void vTranslateSerial(void *pvParameters)
   FUNÇÂO: Funciona em conjunto com o programa calibration.py na pasta Calibration para
   calibração automática dos canais dos sensores desejados pelos usuário.
 
-  USO: 
-    1. Conecte a Carga de Calibração: Conecte uma lâmpada incandescente de potência
-    conhecida (ex.: 60W) à rede elétrica de 220V, entre fase e neutro. Esta lâmpada
-    servirá como referência para a calibração do sensor de corrente.
+  USO:
+    1. Conecte as 3 cargas resistivas nos locais devidos (ficarão em série). E aguarde
+    com o multímetro na função adequada de leitura de tensão AC.
 
-    2. Prepare o ESP32: Conecte o ESP32 ao computador. Verifique qual porta COM foi
-    atribuída ao dispositivo e certifique-se de que não está em uso por outro programa.
+    2. Inicialize o programa "calibraiton.py". Assim que ele autoconectar com a board,
+    irá solicitar qual o canal é sejado calibrar.
 
-    3. Execute o Programa de Calibração: Inicie o programa calibration.py. Ele detectará
-    automaticamente o ESP32 disponível e estabelecerá a comunicação.
+    3. Em seguida, irá iniciar a solicitação da tensão lida pelo sensor, se repetindo
+    por 6 vezes. Essa repetção é explicada devido ao ESP32 que irá fazer a leitura da
+    tensão em 6 posições desse arranjo (uma de cada, a cada duas, e as três). Então,
+    em cada solicitação fazer a leitura da tensão na entrada do sensor do canal que
+    está sendo calibrado.
 
-    4. Selecione o Canal a Ser Calibrado: O programa solicitará que você selecione qual
-    fase (ou canal) será calibrada. Os canais correspondem às fases 0, 1 e 2 (total de 3
-    fases). Se for a primeira calibração do ESP32, é recomendável iniciar pelo canal 0,
-    calibrando um canal por vez.
+    4. Após as 6 coletas, ele irá automaticamente enviar os coeficientes calculados
+    e irá perguntar se é desejada a calibração de outro canal. Caso sim, apenas
+    repetir os passos 2 e 3.
 
-    5. Medição da Tensão: Utilize um multímetro em modo de medição de tensão AC para medir
-    a tensão da fase selecionada em relação ao neutro. Insira o valor medido no programa
-    calibration.py.
+    5. Para calibração de corrente, ainda não está funcionando (26/08/24).
 
-    6. Sincronização e Cálculo: O programa sincronizará com o ESP32, coletará os dados
-    brutos, calculará os coeficientes de calibração e enviará automaticamente os coeficientes
-    ajustados para o ESP32.
-
-    7. Calibração da Corrente: Após a calibração da tensão, o programa perguntará se você
-    deseja calibrar o sensor de corrente para aquela fase. Se sim, insira "Y" e forneça o
-    valor da potência da lâmpada conectada. O programa calculará a resistência da lâmpada,
-    determinará a corrente real com base na tensão calibrada, e enviará os coeficientes de
-    calibração para o sensor de corrente.
-
-    8. Continuação ou Finalização: Ao final da calibração de um canal, você será questionado
-    se deseja calibrar outro canal. Se optar por continuar, repita o processo a partir do passo 4.
-    Caso contrário, o programa encerrará a sessão e desconectará automaticamente do ESP32.
 */
 void vCalibration(void *pvParameters)
 {
@@ -214,8 +203,10 @@ void vCalibration(void *pvParameters)
 }
 
 /*
-  TASK
-  FUNÇÂO:
+  TASK de armazenamento dos coeficientes
+  FUNÇÂO: armazena no calibraiton.txt os coeficientes calculados para cada
+  canal e sensor acoplado. É chamada pelo software "calibration.py", mas pode
+  ser chamado manualmente pelo monitor serial.
 */
 void vInsertCoefficients(void *pvParameters)
 {
@@ -244,13 +235,8 @@ void vInsertCoefficients(void *pvParameters)
       String str_channel = inputString.substring(0, limiter);
       String sensor = inputString.substring(limiter + 1);
       channel = str_channel.toInt();
-      // Serial.print(channel);
-      // Serial.print(" ");
-      // Serial.println(sensor);
       if ((!(sensor.equals("V")) && !(sensor.equals("I"))))
       {
-        // Serial.println("Error aqui");
-        // Serial.println(inputString);
         Serial.flush();
         break;
       }
@@ -273,16 +259,14 @@ void vInsertCoefficients(void *pvParameters)
           {
             // Extraia o coeficiente da substring
             String coefStr = inputString.substring(startPos, delimiterPos);
-            coefficients[coefCount] = coefStr.toFloat(); // Converta para float e armazene
+            coefficients[coefCount] = coefStr.toFloat();
             coefCount++;
-            Serial.println(inputString);
+            // Serial.println(inputString);
 
-            // Atualize a posição de início e encontre o próximo delimitador
+            // Atualiza a posição de início e encontre o próximo delimitador
             startPos = delimiterPos + 1;
             delimiterPos = inputString.indexOf('|', startPos);
           }
-
-          // Não se esqueça de pegar o último coeficiente após o último '|'
           if (coefCount < DEGREE)
           {
             String coefStr = inputString.substring(startPos);
@@ -290,13 +274,13 @@ void vInsertCoefficients(void *pvParameters)
           }
 
           // DEBUG
-          for (int i = 0; i < DEGREE; i++)
-          {
-            Serial.print("Coeficiente ");
-            Serial.print(i);
-            Serial.print(": ");
-            Serial.println(coefficients[i]);
-          };
+          // for (int i = 0; i < DEGREE; i++)
+          // {
+          //   Serial.print("Coeficiente ");
+          //   Serial.print(i);
+          //   Serial.print(": ");
+          //   Serial.println(coefficients[i]);
+          // };
           Serial.flush();
           files.insCoef(sensor, channel, coefficients);
           break;
@@ -308,8 +292,6 @@ void vInsertCoefficients(void *pvParameters)
           // Serial.println("Time Out");
           break;
         }
-        // vTaskDelay(pdMS_TO_TICKS(100));
-        Serial.flush();
       }
 
       break;
@@ -326,8 +308,8 @@ void vInsertCoefficients(void *pvParameters)
 /*
   TASK de empacotamento de envio dos dados dos sensores pelo LoraMesh
 
-  FUNÇÂO: a cada TimerMesh/1000 segundos, a task vai capturar as leituras dos
-  sensores em RMS, empacotar no formato JSON e depois enviar para o LoraMesh.
+  FUNÇÂO: captura as leituras dos sensores em RMS, empacotar no formato JSON
+  e depois enviar para o LoraMesh.
 */
 void vMeshSend(void *pvParameters)
 {
@@ -360,7 +342,7 @@ void vMeshSend(void *pvParameters)
   }
   String str;
   serializeJson(data, str);
-  serializeJson(data, Serial);
+  // serializeJson(data, Serial);
 
   if (lora.idRead() == 1)
   {
@@ -370,5 +352,3 @@ void vMeshSend(void *pvParameters)
   str = "";
   vTaskDelete(NULL);
 }
-
-// }
