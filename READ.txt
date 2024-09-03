@@ -59,7 +59,7 @@ Equação para implementação de autocalibração:
     b = -(a*LeituraMedia);
 
 OBS: Com essas calibrações, obtive o erro de -0.05Arms do lido para o Real e -5Vrms
-
+{"V":[[-9035,47880,-63221],[0,0,0],[0,0,0]],"I":[[1331.170044,-3398.409912,0],[0,0,0],[0,0,0]]}
 Tarefa de casa
 _________________________________________________________________________
 

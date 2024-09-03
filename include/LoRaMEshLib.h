@@ -8,7 +8,7 @@ class LoRaEnd
 {
 public:
     LoRaEnd(int TXpin, int RXpin);
-    void begin(int _baudrate);
+    void begin(JsonDocument data);
     void sendMaster(String dados);
     int idRead();
 
@@ -27,20 +27,33 @@ LoRaEnd::LoRaEnd(int TXpin, int RXpin)
 {
 }
 
-void LoRaEnd::begin(int _baudrate)
+void LoRaEnd::begin(JsonDocument data)
 {
-    _serial->begin(_baudrate, SERIAL_8N1, _RXpin, _TXpin);
+    _serial->begin(data["Baudrate"], SERIAL_8N1, _RXpin, _TXpin);
     lora.begin(true);
+
+    if (lora.localId != data["ID"])
+    {
+        lora.setnetworkId(data["ID"]);
+        lora.setpassword(data["Password"]);
+
+        // TODO: traduzir os dados do JSON para cada config
+        lora.config_bps(BW125, SF_LoRa_7, CR4_5);
+        lora.config_class(LoRa_CLASS_C, LoRa_WINDOW_15s);
+        
+
+    }
+
     // Serial.println("LocalID: " + String(lora.localId));
     // Serial.println("UniqueID: " + String(lora.localUniqueId));
     // Serial.println("Pass <= 65535: " + String(lora.registered_password));
     // rotina de indentificação de conexão
 }
 
-int LoRaEnd::idRead(){
+int LoRaEnd::idRead()
+{
     return lora.localId;
 }
-
 
 void LoRaEnd::sendMaster(String dados)
 {
@@ -48,7 +61,7 @@ void LoRaEnd::sendMaster(String dados)
     dados.getBytes(payload, dados.length() + 1); // mensagem.toCharArray(payload, tamanho);
     uint8_t payloadSize = dados.length() + 1;
     command = 0x10; // Para enviar uma String deve-se usar os comandos de aplicação, ou seja, no byte[2] colocar um comando com valor maior que 12 e menor que 128
-    id = 0; //Para o mestre
+    id = 0;         // Para o mestre
 
     if (lora.PrepareFrameCommand(id, command, payload, payloadSize))
     {

@@ -12,6 +12,9 @@
                 "c:/Users/PC/Downloads/Projets/SmartMeter/src",
                 "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/SPIFFS/src",
                 "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/FS/src",
+                "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src",
+                "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
+                "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/PubSubClient/src",
                 "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/ArduinoJson/src",
                 "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/LoRaMESH",
                 "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/Adafruit ADS1X15",
@@ -241,8 +244,6 @@
                 "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/USB/src",
                 "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/Update/src",
                 "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/WebServer/src",
-                "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
-                "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src",
                 "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/WiFiProv/src",
                 ""
             ],
@@ -253,6 +254,9 @@
                     "c:/Users/PC/Downloads/Projets/SmartMeter/src",
                     "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/SPIFFS/src",
                     "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/FS/src",
+                    "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src",
+                    "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
+                    "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/PubSubClient/src",
                     "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/ArduinoJson/src",
                     "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/LoRaMESH",
                     "c:/Users/PC/Downloads/Projets/SmartMeter/.pio/libdeps/esp32doit-devkit-v1/Adafruit ADS1X15",
@@ -482,8 +486,6 @@
                     "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/USB/src",
                     "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/Update/src",
                     "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/WebServer/src",
-                    "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
-                    "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src",
                     "C:/Users/PC/.platformio/packages/framework-arduinoespressif32/libraries/WiFiProv/src",
                     ""
                 ]

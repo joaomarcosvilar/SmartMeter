@@ -1,4 +1,5 @@
-https://github.com/bblanchon/ArduinoJson
+SPI
+https://github.com/knolleary/pubsubclient
 https://github.com/adafruit/Adafruit_ADS1X15
 https://github.com/Radioenge/LoRaMESH
-SPI
+ArduinoJson@7.0.4

@@ -1,226 +1,311 @@
-#include "FS.h"
-#include "SPIFFS.h"
+#/*
+  Simple MQTT communication to TAGO.io
 
-/* You only need to format SPIFFS the first time you run a
-   test or else use the SPIFFS plugin to create a partition
-   https://github.com/me-no-dev/arduino-esp32fs-plugin */
-#define FORMAT_SPIFFS_IF_FAILED true
+  Sends basic ESP32 data and dummy variables to a Tago.io MQTT broker.
+  See instructions manual for the code implementation details, as well as
+  Tago.io dashboard & device & bucket configuration tricks.
 
-// listDir(SPIFFS, "/", 0);
-void listDir(fs::FS &fs, const char *dirname, uint8_t levels)
-{
-  Serial.printf("Listing directory: %s\r\n", dirname);
+  created 2022
+  by Flavio Puhl <flavio_puhl@hotmail.com>
+  
+  This example code is in the public domain.
 
-  File root = fs.open(dirname);
-  if (!root)
-  {
-    Serial.println("- failed to open directory");
-    return;
-  }
-  if (!root.isDirectory())
-  {
-    Serial.println(" - not a directory");
-    return;
-  }
+*/
 
-  File file = root.openNextFile();
-  while (file)
-  {
-    if (file.isDirectory())
-    {
-      Serial.print("  DIR : ");
-      Serial.println(file.name());
-      if (levels)
-      {
-        listDir(fs, file.path(), levels - 1);
-      }
-    }
-    else
-    {
-      Serial.print("  FILE: ");
-      Serial.print(file.name());
-      Serial.print("\tSIZE: ");
-      Serial.println(file.size());
-    }
-    file = root.openNextFile();
-  }
-}
 
-// readFile(SPIFFS, "/hello.txt");
-void readFile(fs::FS &fs, const char *path)
-{
-  Serial.printf("Reading file: %s\r\n", path);
+/*+--------------------------------------------------------------------------------------+
+ *| Libraries                                                                            |
+ *+--------------------------------------------------------------------------------------+ */
 
-  File file = fs.open(path);
-  if (!file || file.isDirectory())
-  {
-    Serial.println("- failed to open file for reading");
-    return;
-  }
+#include <Arduino.h>
 
-  Serial.println("- read from file:");
-  while (file.available())
-  {
-    Serial.write(file.read());
-  }
-  file.close();
-}
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <PubSubClient.h>                // MQTT
+#include <ArduinoJson.h>                 // MQTT
 
-// writeFile(SPIFFS, "/hello.txt", "Hello ");
-void writeFile(fs::FS &fs, const char *path, const char *message)
-{
-  Serial.printf("Writing file: %s\r\n", path);
+/*+--------------------------------------------------------------------------------------+
+ *| Constants declaration                                                                |
+ *+--------------------------------------------------------------------------------------+ */
+ 
+ // Insert here the wifi network credentials
+const char *ssid                              = "CasaDoTheodoro1";                       // name of your WiFi network
+const char *password                          = "09012011";                              // password of the WiFi network
 
-  File file = fs.open(path, FILE_WRITE);
-  if (!file)
-  {
-    Serial.println("- failed to open file for writing");
-    return;
-  }
-  if (file.print(message))
-  {
-    Serial.println("- file written");
-  }
-  else
-  {
-    Serial.println("- write failed");
-  }
-  file.close();
-}
+const char *ID                                = "ThisIsMyESP32ID";                      // Name of our device, must be unique
+const char* BROKER_MQTT                       = "mqtt.tago.io";                          // MQTT Cloud Broker URL
+unsigned int PORT                             = 8883;
+const char *TOKEN                             ="499ef0e5-bdd9-4f59-899d-32db43f7d904";
 
-// appendFile(SPIFFS, "/hello.txt", "World!\r\n");
-void appendFile(fs::FS &fs, const char *path, const char *message)
-{
-  Serial.printf("Appending to file: %s\r\n", path);
+const char *USER                              = "MQTTTuser";
 
-  File file = fs.open(path, FILE_APPEND);
-  if (!file)
-  {
-    Serial.println("- failed to open file for appending");
-    return;
-  }
-  if (file.print(message))
-  {
-    Serial.println("- message appended");
-  }
-  else
-  {
-    Serial.println("- append failed");
-  }
-  file.close();
-}
 
-// renameFile(SPIFFS, "/hello.txt", "/foo.txt");
-void renameFile(fs::FS &fs, const char *path1, const char *path2)
-{
-  Serial.printf("Renaming file %s to %s\r\n", path1, path2);
-  if (fs.rename(path1, path2))
-  {
-    Serial.println("- file renamed");
-  }
-  else
-  {
-    Serial.println("- rename failed");
-  }
-}
+// Insert here topics that the device will publish to broker
+const char *TopicsToPublish[]                 = { 
+                                                "data",
+                                                "info"
+                                              };
 
-void deleteFile(fs::FS &fs, const char *path)
-{
-  Serial.printf("Deleting file: %s\r\n", path);
-  if (fs.remove(path))
-  {
-    Serial.println("- file deleted");
-  }
-  else
-  {
-    Serial.println("- delete failed");
-  }
-}
+String DeviceName                             = "TAGOioESP32MQTT";
+String FirmWareVersion                        = "TAGOioESP32MQTT_001";
 
-//  testFileIO(SPIFFS, "/test.txt");
-void testFileIO(fs::FS &fs, const char *path)
-{
-  Serial.printf("Testing file I/O with %s\r\n", path);
+unsigned long previousMillis = 0; 
 
-  static uint8_t buf[512];
-  size_t len = 0;
-  File file = fs.open(path, FILE_WRITE);
-  if (!file)
-  {
-    Serial.println("- failed to open file for writing");
-    return;
-  }
 
-  size_t i;
-  Serial.print("- writing");
-  uint32_t start = millis();
-  for (i = 0; i < 2048; i++)
-  {
-    if ((i & 0x001F) == 0x001F)
-    {
+/*+--------------------------------------------------------------------------------------+
+ *| Objects                                                                              |
+ *+--------------------------------------------------------------------------------------+ */
+
+
+//BearSSL::WiFiClientSecure wClient;
+//WiFiClient wClient;
+WiFiClientSecure wClient;
+PubSubClient MQTTclient(wClient);                           // Setup MQTT client
+
+
+
+/*+--------------------------------------------------------------------------------------+
+ *| Connect to WiFi network                                                              |
+ *+--------------------------------------------------------------------------------------+ */
+
+void setup_wifi() {
+  Serial.print("\nConnecting to ");
+  Serial.println(ssid);
+    WiFi.mode(WIFI_STA);                              // Setup ESP in client mode
+    //WiFi.setSleepMode(WIFI_NONE_SLEEP);
+    WiFi.begin(ssid, password);                       // Connect to network
+
+    int wait_passes = 0;
+    while (WiFi.status() != WL_CONNECTED) {           // Wait for connection
+      delay(500);
       Serial.print(".");
+      if (++wait_passes >= 20) { ESP.restart(); }     // Restart in case of no wifi connection   
     }
-    file.write(buf, 512);
+
+  Serial.print("\nWiFi connected");
+  Serial.print("\nIP address: ");
+    Serial.println(WiFi.localIP());
+
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(true);
+
+}
+
+/*+--------------------------------------------------------------------------------------+
+ *| Verify and Manage WiFi network                                                       |
+ *+--------------------------------------------------------------------------------------+ */
+
+void VerifyWifi() {
+
+  if (WiFi.status() != WL_CONNECTED || WiFi.localIP() == IPAddress(0, 0, 0, 0)){          // Check for network health
+      
+    Serial.printf("error: WiFi not connected, reconnecting \n");
+            
+      WiFi.disconnect();
+      setup_wifi();             
+
+  } 
+
+}
+
+
+/*+--------------------------------------------------------------------------------------+
+ *| Reconnect to MQTT client                                                             |
+ *+--------------------------------------------------------------------------------------+ */
+ 
+void MQTTconnect() {
+
+  if(!MQTTclient.connected()) {                               // Check if MQTT client is connected
+  
+  Serial.println();
+  Serial.println("MQTT Client   : [ not connected ]");
+
+  MQTTclient.setServer(BROKER_MQTT, PORT);                    // MQTT broker info
+  MQTTclient.setBufferSize(1024);
+                      
+    
+    Serial.println("MQTT Client   : [ trying connection ]");
+    
+    if (MQTTclient.connect(ID,USER,TOKEN)) {
+      Serial.println("MQTT Client   : [ broker connected ]");
+
+      for(int i=0; i<=((sizeof(TopicsToPublish) / sizeof(TopicsToPublish[0]))-1); i++){
+
+        Serial.print("MQTT Client   : [ publishing to ");
+        Serial.print(TopicsToPublish[i]);
+        Serial.println(" ]");
+        
+      }
+    } else {
+      Serial.print("MQTT Client   : [ failed, rc= ");
+      Serial.print(MQTTclient.state());
+      Serial.println(" ]");
+
+      delay(5000);
+      setup_wifi();
+    }
   }
+}
+
+/*+--------------------------------------------------------------------------------------+
+ *| Serialize JSON and publish MQTT                                                      |
+ *+--------------------------------------------------------------------------------------+ */
+
+void SerializeAndPublish() {
+
+  if (!MQTTclient.connected())                            // Reconnect if connection to MQTT is lost 
+  {    MQTTconnect();      }
+
+  char buffer[1024];                                      // JSON serialization 
+   
+  StaticJsonDocument<512> doc;
+
+    JsonObject doc_0 = doc.createNestedObject();
+    doc_0["variable"] = "esp32DeviceName";
+    doc_0["value"] = DeviceName;
+    doc_0["unit"] = "";
+
+    JsonObject doc_1 = doc.createNestedObject();
+    doc_1["variable"] = "esp32FirmWareVersion";
+    doc_1["value"] = FirmWareVersion;
+    doc_1["unit"] = "";
+
+    JsonObject doc_2 = doc.createNestedObject();
+    doc_2["variable"] = "esp32WiFiRSSI";
+    doc_2["value"] = WiFi.RSSI();
+    doc_2["unit"] = "dB";
+
+    JsonObject doc_3 = doc.createNestedObject();
+    doc_3["variable"] = "esp32IP";
+    doc_3["value"] = WiFi.localIP();
+    doc_3["unit"] = "";
+
+    JsonObject doc_4 = doc.createNestedObject();
+    doc_4["variable"] = "esp32temperature";
+    doc_4["value"] = random(300);
+    doc_4["unit"] = "C";
+
+    JsonObject doc_5 = doc.createNestedObject();
+    doc_5["variable"] = "esp32pressure";
+    doc_5["value"] = random(3000);
+    doc_5["unit"] = "Bar";
+
+    serializeJson(doc, buffer);
+
+    Serial.printf("\nJSON Payload:");
+      Serial.printf("\n");
+    
+    serializeJsonPretty(doc, Serial);                 // Print JSON payload on Serial port        
+      Serial.printf("\n");
+      Serial.println("MQTT Client   : [ Sending message to MQTT topic ]"); 
+      Serial.println("");         
+
+    MQTTclient.publish(TopicsToPublish[0], buffer);    // Publish data to MQTT Broker 
+       
+}
+
+
+/*+--------------------------------------------------------------------------------------+
+ *| Setup                                                                                |
+ *+--------------------------------------------------------------------------------------+ */
+ 
+void setup() {
+
+  Serial.begin(115200);                                                                     // Start serial communication at 115200 baud
+  delay(1000);
+
+  Serial.println();
+  Serial.println(FirmWareVersion);
+  Serial.println();
+
+  setup_wifi();         // Start wifi
+
+  wClient.setInsecure();
+
+  MQTTconnect();        // Connect to MQTT Broker
+
   Serial.println("");
-  uint32_t end = millis() - start;
-  Serial.printf(" - %u bytes written in %lu ms\r\n", 2048 * 512, end);
-  file.close();
-
-  file = fs.open(path);
-  start = millis();
-  end = start;
-  i = 0;
-  if (file && !file.isDirectory())
-  {
-    len = file.size();
-    size_t flen = len;
-    start = millis();
-    Serial.print("- reading");
-    while (len)
-    {
-      size_t toRead = len;
-      if (toRead > 512)
-      {
-        toRead = 512;
-      }
-      file.read(buf, toRead);
-      if ((i++ & 0x001F) == 0x001F)
-      {
-        Serial.print(".");
-      }
-      len -= toRead;
-    }
-    Serial.println("");
-    end = millis() - start;
-    Serial.printf("- %u bytes read in %lu ms\r\n", flen, end);
-    file.close();
-  }
-  else
-  {
-    Serial.println("- failed to open file for reading");
-  }
+  Serial.println("Setup         : [ finished ]");
+  Serial.println("");
+  
 }
 
-void setup()
-{
+
+/*+--------------------------------------------------------------------------------------+
+ *| main loop                                                                            |
+ *+--------------------------------------------------------------------------------------+ */
+ 
+void loop() {
+
+  MQTTclient.loop();        // Needs to be in the loop to keep client connection alive
+
+  unsigned long currentMillis = millis();
+
+  if (currentMillis - previousMillis >= 10*1000) {
+    
+    previousMillis = currentMillis;
+
+    SerializeAndPublish();
+
+  }
+
+}
+_________________________________________________________________________________
+
+#include <WiFi.h>
+#include <PubSubClient.h>
+
+const char* ssid = "your_SSID";
+const char* password = "your_PASSWORD";
+const char* mqtt_server = "mqtt.tago.io";
+const char* mqtt_username = "Token";
+const char* mqtt_password = "your_device_token";
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+void setup() {
   Serial.begin(115200);
-  if (!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED))
-  {
-    Serial.println("SPIFFS Mount Failed");
-    return;
-  }
-
-  listDir(SPIFFS, "/", 0);
-  writeFile(SPIFFS, "/hello.txt", "Hello ");
-  appendFile(SPIFFS, "/hello.txt", "World!\r\n");
-  readFile(SPIFFS, "/hello.txt");
-  renameFile(SPIFFS, "/hello.txt", "/foo.txt");
-  readFile(SPIFFS, "/foo.txt");
-  deleteFile(SPIFFS, "/foo.txt");
-  testFileIO(SPIFFS, "/test.txt");
-  deleteFile(SPIFFS, "/test.txt");
-  Serial.println("Test complete");
+  setup_wifi();
+  client.setServer(mqtt_server, 1883);
 }
 
-void loop() {}
+void setup_wifi() {
+  delay(10);
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+}
+
+void reconnect() {
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    if (client.connect("ESP32Client", mqtt_username, mqtt_password)) {
+      Serial.println("connected");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      delay(5000);
+    }
+  }
+}
+
+void loop() {
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+}
