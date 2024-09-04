@@ -18,8 +18,9 @@ public:
     void insCoef(String _sensor, int channel, float coefficients[]);
     float getCoef(String _sensor, int channel, int coefficient);
     void format();
-    void changeInterface(String interface);
+    void ChangeInterface(String interface, bool status);
     void ChangeInterface(String interface, String dado, String subdado);
+    void ChangeInterface(String interface, String dado, String subdado, bool status);
     void readALL();
 
 private:
@@ -97,7 +98,7 @@ void MySPIFFS::initInterface()
 {
     JsonDocument data;
     // Debug
-    data["debug"] = false;
+    data["debug"] = true;
 
     // Dados referente à comunicação WiFi
     data["WiFi"]["Status"] = true;
@@ -105,11 +106,10 @@ void MySPIFFS::initInterface()
     // data["WiFi"]["Password"] = "fifo2rrobin";
     // data["WiFi"]["SSID"] = "JoaoMarcos";
     // data["WiFi"]["Password"] = "TestesMIC";
-        data["WiFi"]["SSID"] = "FREUD_EXPLICA_2.4G";
+    data["WiFi"]["SSID"] = "FREUD_EXPLICA_2.4G";
     data["WiFi"]["Password"] = "02040608";
     data["WiFi"]["THINGNAME"] = "SmartMeter";
     data["WiFi"]["AWS_IOT_ENDPOINT"] = "a1o3x5gedhdznd-ats.iot.us-east-2.amazonaws.com"; // Enddevice
-    // data["WiFi"]["Port"] = 8883;
 
     // LoRaMESH: é a comunicação DEFAULT_Coef, precisa configurar o LoRaMesh na inicialização
     data["LoRaMESH"]["Status"] = false;
@@ -132,37 +132,17 @@ void MySPIFFS::initInterface()
     file.close();
 }
 
-void MySPIFFS::changeInterface(String interface)
+void MySPIFFS::ChangeInterface(String interface, bool status)
 {
-    File file = SPIFFS.open("/inteface.json", FILE_READ);
-    JsonDocument data;
-    deserializeJson(data, file);
-    file.close();
-
-    if (data["WiFi"]["Status"])
-        data["WiFi"]["Status"] = false;
-
-    if (data["LoRaMESH"]["Status"])
-        data["LoRaMESH"]["Status"] = false;
-
-    if (data["PPP"]["Status"])
-        data["PPP"]["Status"] = false;
-
-    data[interface]["Status"] = true;
-
-    file = SPIFFS.open("/interface.json", FILE_WRITE);
-    serializeJson(data, file);
-    file.close();
-
-    ESP.restart();
+    ChangeInterface(interface, "", "", status);
 }
 
-// void MySPIFFS::ChangeInterface(String interface, String subdado){           <--- parei aqui
-//     if(interface.equals("debug"))
-//         ChangeInterface("debug",subdado)
-// }
-
 void MySPIFFS::ChangeInterface(String interface, String dado, String subdado)
+{
+    ChangeInterface(interface, dado, subdado, NULL);
+}
+
+void MySPIFFS::ChangeInterface(String interface, String dado, String subdado, bool status)
 {
     File file = SPIFFS.open("/interface.json", FILE_READ);
     JsonDocument data;
@@ -173,7 +153,22 @@ void MySPIFFS::ChangeInterface(String interface, String dado, String subdado)
     file.close();
 
     Serial.println("Salvou");
+    
     data[interface][dado] = subdado;
+
+    if (status != NULL)
+    {
+        if (data["WiFi"]["Status"])
+            data["WiFi"]["Status"] = false;
+
+        if (data["LoRaMESH"]["Status"])
+            data["LoRaMESH"]["Status"] = false;
+
+        if (data["PPP"]["Status"])
+            data["PPP"]["Status"] = false;
+
+        data[interface]["Status"] = true;
+    }
 
     file = SPIFFS.open("/interface.json", FILE_WRITE);
     serializeJson(data, file);

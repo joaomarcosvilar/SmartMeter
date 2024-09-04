@@ -9,7 +9,7 @@ class LoRaEnd
 public:
     LoRaEnd(int TXpin, int RXpin);
     void begin(JsonDocument data);
-    void sendMaster(String dados);
+    bool sendMaster(String dados);
     int idRead();
 
 private:
@@ -55,7 +55,7 @@ int LoRaEnd::idRead()
     return lora.localId;
 }
 
-void LoRaEnd::sendMaster(String dados)
+bool LoRaEnd::sendMaster(String dados)
 {
     uint8_t payload[dados.length() + 1];
     dados.getBytes(payload, dados.length() + 1); // mensagem.toCharArray(payload, tamanho);
@@ -67,15 +67,18 @@ void LoRaEnd::sendMaster(String dados)
     {
         if (lora.SendPacket())
         {
+            return true;
             // Serial.println("Pacote enviado com sucesso!");
         }
         else
         {
+            return false;
             // Serial.println("Falha ao enviar o pacote!");
         }
     }
     else
     {
+        return false;
         // Serial.println("Falha ao preparar o pacote!");
     }
 }
