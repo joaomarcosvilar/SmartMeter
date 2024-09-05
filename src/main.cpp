@@ -53,6 +53,11 @@ JsonDocument data;
 String interface;
 
 bool debug = true;
+void debugPrint(String str)
+{
+  Serial.println(str);
+}
+
 #define AWS_IOT_PUBLISH_TOPIC "smartmeter/power"
 
 void setup()
@@ -95,7 +100,7 @@ void vInitializeInterface(void *pvParameters)
   // Inicializa o LoRaMesh
   if (data["LoRaMESH"]["Status"])
   {
-    // lora.begin(data["LoRaMESH"]); // ERROR
+    lora.begin(data);
     interface = "LoRaMESH";
   }
 
@@ -120,54 +125,47 @@ void vInitializeInterface(void *pvParameters)
         ESP.restart();
       }
     }
-    if (debug)
-      Serial.println(WiFi.localIP());
+    debugPrint(String(WiFi.localIP()));
   }
   // Inicializa protocolo GSM
   // if (data["PPP"]["Status"]){interface= "PPP";
   //}
 
-  if((data["WiFi"]["Status"])||(data["PPP"]["Status"])){
-    // Conexão com o Broker
-  const char *AWS_IOT_ENDPOINT = data["WiFi"]["AWS_IOT_ENDPOINT"];
-  // Serial.println(AWS_IOT_ENDPOINT);
-  const char *THINGNAME = data["WiFi"]["THINGNAME"];
-  // Serial.println(THINGNAME);
-
-  const char AWS_IOT_SUBSCRIBE_TOPIC[] = "smartmeter/subpower";
-  // Configure WiFiClientSecure to use the AWS IoT device credentials
-  espClient.setCACert(AWS_CERT_CA);
-  espClient.setCertificate(AWS_CERT_CRT);
-  espClient.setPrivateKey(AWS_CERT_PRIVATE);
-
-  // Connect to the MQTT broker on the AWS endpoint we defined earlier
-  MQTTclient.setServer(AWS_IOT_ENDPOINT, 8883);
-
-  // Create a message handler
-  // client.setCallback(messageHandler);
-
-  if (debug)
-    Serial.println("Connecting to AWS IOT");
-
-  while (!MQTTclient.connect(THINGNAME))
+  if ((data["WiFi"]["Status"]) || (data["PPP"]["Status"]))
   {
-    if (debug)
+    // Conexão com o Broker
+    const char *AWS_IOT_ENDPOINT = data["WiFi"]["AWS_IOT_ENDPOINT"];
+    debugPrint(String(AWS_IOT_ENDPOINT));
+    const char *THINGNAME = data["WiFi"]["THINGNAME"];
+    debugPrint(String(THINGNAME));
+
+    const char AWS_IOT_SUBSCRIBE_TOPIC[] = "smartmeter/subpower";
+    // Configure WiFiClientSecure to use the AWS IoT device credentials
+    espClient.setCACert(AWS_CERT_CA);
+    espClient.setCertificate(AWS_CERT_CRT);
+    espClient.setPrivateKey(AWS_CERT_PRIVATE);
+
+    // Connect to the MQTT broker on the AWS endpoint we defined earlier
+    MQTTclient.setServer(AWS_IOT_ENDPOINT, 8883);
+
+    // Create a message handler
+    // client.setCallback(messageHandler);
+
+    debugPrint("Connecting to AWS IOT");
+
+    while (!MQTTclient.connect(THINGNAME))
     {
-      Serial.print(MQTTclient.state());
-      Serial.print(".");
+      debugPrint(String(MQTTclient.state()));
+      debugPrint(".");
     }
     vTaskDelay(pdMS_TO_TICKS(100));
-  }
 
-  // Subscribe to a topic
-  MQTTclient.subscribe(AWS_IOT_SUBSCRIBE_TOPIC);
+    // Subscribe to a topic
+    MQTTclient.subscribe(AWS_IOT_SUBSCRIBE_TOPIC);
 
-  if (debug)
-    Serial.println("AWS IoT Connected!");
+    debugPrint("AWS IoT Connected!");
 
-  interface = "WiFi";
-
-  
+    interface = "WiFi";
   }
   vTaskDelete(NULL); // Autodelete
 }
@@ -199,6 +197,7 @@ void vTranslateSerial(void *pvParameters)
         if (inputString.equals("ChangeInterface"))
         {
           xTaskCreate(vInterfaceChange, "InterfaceChange", configMINIMAL_STACK_SIZE + 2048, NULL, 3, NULL);
+          ESP.restart();
         }
 
         // Debug
@@ -215,7 +214,7 @@ void vTranslateSerial(void *pvParameters)
           if (inputString.equals("read all files"))
             files.readALL();
 
-          if (inputString.equals("Intialize Interface"))
+          if (inputString.equals("Initialize Interface"))
             xTaskCreate(vInitializeInterface, "IntializeInterface", 4096, NULL, 1, NULL);
 
           if (inputString.equals("WiFi"))
@@ -326,7 +325,7 @@ void vCalibration(void *pvParameters)
 
       if ((!(sensor.equals("V")) && !(sensor.equals("I"))))
       {
-        Serial.println("aqui");
+        debugPrint("aqui");
         break;
       }
 
@@ -378,8 +377,8 @@ void vInsertCoefficients(void *pvParameters)
       int limiter = inputString.indexOf('|');
       if (limiter == -1)
       {
-        // Serial.println("Error: Delimitador '|' não encontrado.");
-        // Serial.println(inputString);
+        debugPrint("Error: Delimitador '|' não encontrado.");
+        debugPrint(inputString);
         Serial.flush();
         break;
       }
@@ -501,8 +500,7 @@ void vMeshSend(void *pvParameters)
   if (lora.idRead() == 1)
   {
     lora.sendMaster(str);
-    if (debug)
-      Serial.println("LoraMesh Send.");
+    debugPrint("LoraMesh Send.");
   }
   str = "";
   vTaskDelete(NULL);
@@ -554,15 +552,13 @@ void vWiFiMQQT(void *pvParameters)
 
     if (!MQTTclient.connected())
     {
-      if (debug)
-        Serial.println("Não conectado ao MQTT, reiniciando conexão");
+      debugPrint("Não conectado ao MQTT, reiniciando conexão");
       break;
     }
     Serial.println(str);
     MQTTclient.publish(AWS_IOT_PUBLISH_TOPIC, str);
     MQTTclient.loop();
-    if (debug)
-      Serial.println("Enviado.");
+    debugPrint("Enviado.");
 
     vTaskDelete(NULL);
   }
@@ -577,18 +573,21 @@ void vInterfaceChange(void *pvParameters)
     if (Serial.available() > 0)
     {
       _interface = Serial.readString();
-
+      if (!_interface.equals("WiFi") && !_interface.equals("LoRaMESH") && !_interface.equals("PPP"))
+        break;
       Serial.print("Qual tipo de dado quer inserir?");
       while (1)
       {
         if (Serial.available() > 0)
         {
           dado = Serial.readString();
-          break;
+          if (data[_interface].containsKey(dado))
+            break;
+          else
+            Serial.println("Tipo não identificado. Insira novamente:");
         }
         vTaskDelay(pdMS_TO_TICKS(100));
       }
-      Serial.println();
       Serial.print("Qual o dado quer inserir?");
       while (1)
       {
