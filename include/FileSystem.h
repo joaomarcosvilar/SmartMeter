@@ -104,10 +104,10 @@ void MySPIFFS::initInterface()
     data["WiFi"]["Status"] = true;
     // data["WiFi"]["SSID"] = "PTHREAD";
     // data["WiFi"]["Password"] = "fifo2rrobin";
-    // data["WiFi"]["SSID"] = "JoaoMarcos";
-    // data["WiFi"]["Password"] = "TestesMIC";
-    data["WiFi"]["SSID"] = "FREUD_EXPLICA_2.4G";
-    data["WiFi"]["Password"] = "02040608";
+    data["WiFi"]["SSID"] = "JoaoMarcos";
+    data["WiFi"]["Password"] = "TestesMIC";
+    // data["WiFi"]["SSID"] = "FREUD_EXPLICA_2.4G";
+    // data["WiFi"]["Password"] = "02040608";
     data["WiFi"]["THINGNAME"] = "SmartMeter";
     data["WiFi"]["AWS_IOT_ENDPOINT"] = "a1o3x5gedhdznd-ats.iot.us-east-2.amazonaws.com"; // Enddevice
 

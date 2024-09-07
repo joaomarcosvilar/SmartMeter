@@ -22,7 +22,7 @@ public:
 
 private:
     void initializeMQTT();
-    JsonDocument datas;
+    JsonDocument data;
     bool MeshSend(const char *info);
     bool WiFiSend(const char *info);
     String selecInter;
@@ -42,23 +42,23 @@ Interface::Interface() {}
 
 void Interface::begin(JsonDocument _data)
 {
-    datas.set(_data);
-    bool debug = datas["debug"];
+    data.set(_data);
+    debug = data["debug"];
 
     // Inicializa o LoRaMesh
-    if (datas["LoRaMESH"]["Status"])
+    if (data["LoRaMESH"]["Status"])
     {
-        // lora.begin(data["LoRaMESH"]); // ERROR
+        lora.begin(data);
         selecInter = "LoRaMESH";
     }
 
     // Inicializa o WiFi e conecta com o broker MQTT
-    if (datas["WiFi"]["Status"])
+    if (data["WiFi"]["Status"])
     {
         WiFi.begin();
         // Inicialização do WiFi
-        const char *ssid = datas["WiFi"]["SSID"];
-        const char *password = datas["WiFi"]["Password"];
+        const char *ssid = data["WiFi"]["SSID"];
+        const char *password = data["WiFi"]["Password"];
 
         WiFi.mode(WIFI_STA);
         WiFi.begin(ssid, password);
@@ -77,24 +77,28 @@ void Interface::begin(JsonDocument _data)
         if (debug)
             Serial.println(WiFi.localIP());
         selecInter = "WiFi";
+        initializeMQTT();
+        return;
     }
 
     // Inicializa protocolo GSM
     // if (data["PPP"]["Status"]){selecInter= "PPP";
     //}
 
-    if ((datas["WiFi"]["Status"]) || (datas["PPP"]["Status"]))
+    if ((data["WiFi"]["Status"]) || (data["PPP"]["Status"]))
     {
-        initializeMQTT();
     }
 }
 
 void Interface::initializeMQTT()
 {
+    if (debug)
+        Serial.println("Initialized MQTT conection.");
     // Conexão com o Broker
-    const char *AWS_IOT_ENDPOINT = datas["WiFi"]["AWS_IOT_ENDPOINT"];
+    serializeJson(data, Serial);
+    const char *AWS_IOT_ENDPOINT = data["WiFi"]["AWS_IOT_ENDPOINT"];
     // Serial.println(AWS_IOT_ENDPOINT);
-    const char *THINGNAME = datas["WiFi"]["THINGNAME"];
+    const char *THINGNAME = data["WiFi"]["THINGNAME"];
     // Serial.println(THINGNAME);
 
     const char AWS_IOT_SUBSCRIBE_TOPIC[] = "smartmeter/subpower";
@@ -104,6 +108,7 @@ void Interface::initializeMQTT()
     espClient.setPrivateKey(AWS_CERT_PRIVATE);
 
     // Connect to the MQTT broker on the AWS endpoint we defined earlier
+    Serial.print("setServer");
     MQTTclient.setServer(AWS_IOT_ENDPOINT, 8883);
 
     // Create a message handler
@@ -136,7 +141,7 @@ bool Interface::send(const char *info)
 
     if (selecInter.equals("WiFi"))
         return WiFiSend(info);
-    
+
     return false;
 
     // if (interface.equals("PPP"))

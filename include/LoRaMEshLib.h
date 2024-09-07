@@ -8,7 +8,7 @@ class LoRaEnd
 {
 public:
     LoRaEnd(int TXpin, int RXpin);
-    void begin(JsonDocument data);
+    void begin(JsonDocument _data);
     bool sendMaster(String dados);
     int idRead();
 
@@ -18,6 +18,7 @@ private:
     int _TXpin, _RXpin;
     uint8_t command;
     int id;
+    JsonDocument data;
 };
 
 #endif
@@ -27,15 +28,16 @@ LoRaEnd::LoRaEnd(int TXpin, int RXpin)
 {
 }
 
-void LoRaEnd::begin(JsonDocument data)
+void LoRaEnd::begin(JsonDocument _data)
 {
-    _serial->begin(data["Baudrate"], SERIAL_8N1, _RXpin, _TXpin);
+    data.set(_data);
+    _serial->begin(data["LoRaMESH"]["Baudrate"], SERIAL_8N1, _RXpin, _TXpin);
     lora.begin(true);
 
-    if (lora.localId != data["ID"])
+    if (lora.localId != data["LoRaMESH"]["ID"])
     {
-        lora.setnetworkId(data["ID"]);
-        lora.setpassword(data["Password"]);
+        lora.setnetworkId(data["LoRaMESH"]["ID"]);
+        lora.setpassword(data["LoRaMESH"]["Password"]);
 
         // TODO: traduzir os dados do JSON para cada config
         lora.config_bps(BW125, SF_LoRa_7, CR4_5);

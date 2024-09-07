@@ -1,5 +1,7 @@
+#include <Arduino.h>
+
 // Amazon Root CA 1
-    static const char AWS_CERT_CA[] = R"EOF(
+    static const char AWS_CERT_CA[] PROGMEM = R"EOF(
 -----BEGIN CERTIFICATE-----
 MIIDQTCCAimgAwIBAgITBmyfz5m/jAo54vB4ikPmljZbyjANBgkqhkiG9w0BAQsF
 ADA5MQswCQYDVQQGEwJVUzEPMA0GA1UEChMGQW1hem9uMRkwFwYDVQQDExBBbWF6
@@ -23,7 +25,7 @@ rqXRfboQnoZsG4q5WTP468SQvvG5
     )EOF";
 
     // Device Certificate                                               //change this
-    static const char AWS_CERT_CRT[] = R"KEY(
+    static const char AWS_CERT_CRT[] PROGMEM = R"KEY(
 -----BEGIN CERTIFICATE-----
 MIIDWTCCAkGgAwIBAgIUC/hnyOsH9C/iJkqumlOMusQ8Oo0wDQYJKoZIhvcNAQEL
 BQAwTTFLMEkGA1UECwxCQW1hem9uIFdlYiBTZXJ2aWNlcyBPPUFtYXpvbi5jb20g
@@ -47,7 +49,7 @@ zhzLADhw9NofR/wCcLbtHDKQbsarG9W4+PPaz/XBrKyguEviW2YuRntU42L4
     )KEY";
 
     // Device Private Key                                               //change this
-    static const char AWS_CERT_PRIVATE[] = R"KEY(
+    static const char AWS_CERT_PRIVATE[] PROGMEM = R"KEY(
 -----BEGIN RSA PRIVATE KEY-----
 MIIEogIBAAKCAQEAoQbzyoBb1/1/Iwsmh8D6C5azqFttfW4/id3G/f0r217GTd+v
 ZTXJtmAMOPlam5tIUqVEStos+NSLetNdI+fMTYn6lC73Cm3w9dtoAer8Zrp6wWaB
