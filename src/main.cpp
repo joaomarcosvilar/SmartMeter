@@ -197,7 +197,6 @@ void vTranslateSerial(void *pvParameters)
         if (inputString.equals("ChangeInterface"))
         {
           xTaskCreate(vInterfaceChange, "InterfaceChange", configMINIMAL_STACK_SIZE + 2048, NULL, 3, NULL);
-          ESP.restart();
         }
 
         // Debug
@@ -566,48 +565,73 @@ void vWiFiMQQT(void *pvParameters)
 
 void vInterfaceChange(void *pvParameters)
 {
-  String _interface, dado, subdado;
-  Serial.println("Qual interface");
   while (1)
   {
-    if (Serial.available() > 0)
+    String _interface = "", dado = "", subdado = "";
+    Serial.println("Qual interface?");
+    while (1)
     {
-      _interface = Serial.readString();
-      if (!_interface.equals("WiFi") && !_interface.equals("LoRaMESH") && !_interface.equals("PPP"))
-        break;
-      Serial.print("Qual tipo de dado quer inserir?");
-      while (1)
+      if (Serial.available() > 0)
       {
-        if (Serial.available() > 0)
+        _interface = Serial.readString();
+        if (!_interface.equals("WiFi") && !_interface.equals("LoRaMESH") && !_interface.equals("PPP"))
         {
-          dado = Serial.readString();
-          if (data[_interface].containsKey(dado))
-            break;
-          else
-            Serial.println("Tipo não identificado. Insira novamente:");
-        }
-        vTaskDelay(pdMS_TO_TICKS(100));
-      }
-      Serial.print("Qual o dado quer inserir?");
-      while (1)
-      {
-        if (Serial.available() > 0)
-        {
-          subdado = Serial.readString();
-          if (subdado == data[_interface][dado])
-            continue;
+          Serial.println(_interface);
+          Serial.println("ERROR");
           break;
         }
-        vTaskDelay(pdMS_TO_TICKS(100));
+
+        Serial.print("Qual tipo de dado quer inserir?");
+        while (1)
+        {
+          if (Serial.available() > 0)
+          {
+            dado = Serial.readString();
+            if (data[_interface].containsKey(dado))
+              break;
+            else
+              Serial.println("Tipo não identificado. Insira novamente:");
+          }
+          vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        Serial.print("Qual o dado quer inserir?");
+
+        while (1)
+        {
+          if (Serial.available() > 0)
+          {
+            bool status;
+            subdado = Serial.readString();
+            if (subdado.equals("false"))
+            {
+              status = false;
+              files.ChangeInterface(_interface, status);
+              vTaskDelete(NULL);
+            }
+            else if (subdado.equals("true"))
+            {
+              status = true;
+              files.ChangeInterface(_interface, status);
+              vTaskDelete(NULL);
+            }
+            if (subdado == data[_interface][dado])
+            {
+              Serial.println("Dado já inserido.");
+              continue;
+            }
+            break;
+          }
+          vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        files.ChangeInterface(_interface, dado, subdado);
+
+        if (debug)
+          files.list("/interface.json"); // Debug
+        break;
       }
-      files.ChangeInterface(_interface, dado, subdado);
-      Serial.flush();
 
-      files.list("/interface.json"); // Debug
-      break;
+      vTaskDelay(pdMS_TO_TICKS(100));
     }
-
-    vTaskDelay(pdMS_TO_TICKS(100));
+    vTaskDelete(NULL);
   }
-  vTaskDelete(NULL);
 }

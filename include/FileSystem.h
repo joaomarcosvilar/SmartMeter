@@ -135,18 +135,22 @@ void MySPIFFS::initInterface()
     file.close();
 }
 
+// TODO: Quando receber valores numerais, precisa salvar como numeral, não como string
 void MySPIFFS::ChangeInterface(String interface, bool status)
 {
+    // Serial.println("Passou aqui");
     ChangeInterface(interface, "", "", status);
 }
 
 void MySPIFFS::ChangeInterface(String interface, String dado, String subdado)
 {
+    // Serial.println("Passou aqui 2");
     ChangeInterface(interface, dado, subdado, NULL);
 }
 
 void MySPIFFS::ChangeInterface(String interface, String dado, String subdado, bool status)
 {
+    // Serial.println("Passou aqui 3");
     File file = SPIFFS.open("/interface.json", FILE_READ);
     JsonDocument data;
     DeserializationError error = deserializeJson(data, file);
@@ -154,13 +158,15 @@ void MySPIFFS::ChangeInterface(String interface, String dado, String subdado, bo
     serializeJson(data, Serial);
     // error can be used for debugging
     file.close();
-
+    Serial.println();
     Serial.println("Salvou");
 
     data[interface][dado] = subdado;
 
-    if (status != NULL)
+    if ((status == false) || (status == true))
     {
+        // Serial.println("Passou aqui 4");
+        // Serial.println(String(status));
         if (data["WiFi"]["Status"])
             data["WiFi"]["Status"] = false;
 
@@ -170,7 +176,7 @@ void MySPIFFS::ChangeInterface(String interface, String dado, String subdado, bo
         if (data["PPP"]["Status"])
             data["PPP"]["Status"] = false;
 
-        data[interface]["Status"] = true;
+        data[interface]["Status"] = status;
     }
 
     file = SPIFFS.open("/interface.json", FILE_WRITE);
