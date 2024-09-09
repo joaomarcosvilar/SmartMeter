@@ -4,6 +4,7 @@
 #include <Adafruit_ADS1X15.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/timers.h"
 
 #include <WiFi.h>
 #include <PubSubClient.h>
@@ -33,21 +34,20 @@ PubSubClient MQTTclient(espClient);
 TaskHandle_t CalibrationHandle = NULL;
 TaskHandle_t TranslateSerialHandle = NULL;
 TaskHandle_t InsertCoefficientsHandle = NULL;
-TaskHandle_t MeshSendHandle = NULL;
-TaskHandle_t WiFiMQQThandle = NULL;
+TaskHandle_t EnviosHandle = NULL;
 
 void vInitializeInterface(void *pvParameters);
 void vTranslateSerial(void *pvParameters);
 void vCalibration(void *pvParameters);
 void vInsertCoefficients(void *pvParameters);
-void vMeshSend(void *pvParameters);
-void vWiFiMQQT(void *pvParameters);
 void vInterfaceChange(void *pvParameters);
+void vEnviosTimer(TaskHandle_t EnviosHandle);
 
 #define SAMPLES 2680
 #define TimeOut 10000 // em milisegundos
 #define TimeMesh 5000 // em milisegundos
 #define DEGREE 3      // Grau do polinimio de calibração + 1
+#define TIMER 2000
 
 JsonDocument data;
 String interface;
@@ -72,8 +72,14 @@ void setup()
 
   data = files.begin();
   // debug = data["debug"];
+
+  EnviosHandle = xTimerCreate("Envios", pdMS_TO_TICKS(TIMER), pdTRUE, (void *)0, vEnviosTimer);
+
   if (!debug)
+  {
     xTaskCreate(vInitializeInterface, "IntializeInterface", 4096, NULL, 1, NULL);
+    xTimerStart(EnviosHandle, pdMS_TO_TICKS(100));
+  }
 
   Wire.setBufferSize(256);
 
@@ -160,7 +166,6 @@ void vInitializeInterface(void *pvParameters)
     }
     vTaskDelay(pdMS_TO_TICKS(100));
 
-    // Subscribe to a topic
     MQTTclient.subscribe(AWS_IOT_SUBSCRIBE_TOPIC);
 
     debugPrint("AWS IoT Connected!");
@@ -197,7 +202,7 @@ void vTranslateSerial(void *pvParameters)
         if (inputString.equals("ChangeInterface"))
         {
           xTaskCreate(vInterfaceChange, "InterfaceChange", configMINIMAL_STACK_SIZE + 2048, NULL, 3, NULL);
-          ESP.restart();
+          // ESP.restart();
         }
 
         // Debug
@@ -215,20 +220,14 @@ void vTranslateSerial(void *pvParameters)
             files.readALL();
 
           if (inputString.equals("Initialize Interface"))
-            xTaskCreate(vInitializeInterface, "IntializeInterface", 4096, NULL, 1, NULL);
-
-          if (inputString.equals("WiFi"))
-            xTaskCreate(vWiFiMQQT, "WiFiMQQT", configMINIMAL_STACK_SIZE + 2048, NULL, 3, &WiFiMQQThandle);
-
-          if (inputString.equals("LoraMesh"))
           {
-            xTaskCreate(vMeshSend, "MeshSend", configMINIMAL_STACK_SIZE + 3072, NULL, 3, &MeshSendHandle);
+            xTaskCreate(vInitializeInterface, "IntializeInterface", 4096, NULL, 1, NULL);
+            xTimerStart(EnviosHandle, pdMS_TO_TICKS(100));
           }
           if (inputString.equals("Format SPIFFS"))
           {
             files.format();
           }
-
           if (inputString.equals("List Calibration"))
           {
             files.list("/calibration.txt");
@@ -255,23 +254,23 @@ void vTranslateSerial(void *pvParameters)
     }
     // if (!debug)
     // {
-    if ((millis() - start > 10000))
-    {
-      if (interface.equals("LoRaMESH"))
-        xTaskCreate(vMeshSend, "MeshSend", configMINIMAL_STACK_SIZE + 3072, NULL, 3, &MeshSendHandle);
+    // if ((millis() - start > 10000))
+    // {
+    //   if (interface.equals("LoRaMESH"))
+    //     xTaskCreate(vMeshSend, "MeshSend", configMINIMAL_STACK_SIZE + 3072, NULL, 3, &MeshSendHandle);
 
-      if (interface.equals("WiFi"))
-      {
-        xTaskCreate(vWiFiMQQT, "WiFiMQQT", configMINIMAL_STACK_SIZE + 2048, NULL, 3, &WiFiMQQThandle);
-      }
+    //   if (interface.equals("WiFi"))
+    //   {
+    //     xTaskCreate(vWiFiMQQT, "WiFiMQQT", configMINIMAL_STACK_SIZE + 2048, NULL, 3, &WiFiMQQThandle);
+    //   }
 
-      if (interface.equals("PPP"))
-      {
-      }
+    //   if (interface.equals("PPP"))
+    //   {
+    //   }
 
-      start = millis();
-    }
+    //   start = millis();
     // }
+    // // }
     vTaskDelay(pdMS_TO_TICKS(100));
   }
 }
@@ -423,15 +422,6 @@ void vInsertCoefficients(void *pvParameters)
             String coefStr = inputString.substring(startPos);
             coefficients[coefCount] = coefStr.toFloat();
           }
-
-          // DEBUG
-          // for (int i = 0; i < DEGREE; i++)
-          // {
-          //   Serial.print("Coeficiente ");
-          //   Serial.print(i);
-          //   Serial.print(": ");
-          //   Serial.println(coefficients[i]);
-          // };
           Serial.flush();
           files.insCoef(sensor, channel, coefficients);
           break;
@@ -456,13 +446,67 @@ void vInsertCoefficients(void *pvParameters)
   vTaskDelete(NULL);
 }
 
-/*
-  TASK de empacotamento de envio dos dados dos sensores pelo LoraMesh
+void vInterfaceChange(void *pvParameters)
+{
+  while (1)
+  {
+    String _interface = "", dado = "", subdado = "";
+    Serial.println("Qual interface?");
+    while (1)
+    {
+      if (Serial.available() > 0)
+      {
+        _interface = Serial.readString();
+        if (!_interface.equals("WiFi") && !_interface.equals("LoRaMESH") && !_interface.equals("PPP"))
+        {
+          Serial.println(_interface);
+          Serial.println("ERROR");
+          break;
+        }
 
-  FUNÇÂO: captura as leituras dos sensores em RMS, empacotar no formato JSON
-  e depois enviar para o LoraMesh.
-*/
-void vMeshSend(void *pvParameters)
+        Serial.print("Qual tipo de dado quer inserir?");
+        while (1)
+        {
+          if (Serial.available() > 0)
+          {
+            dado = Serial.readString();
+            if (data[_interface].containsKey(dado))
+              break;
+            else
+              Serial.println("Tipo não identificado. Insira novamente:");
+          }
+          vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        Serial.print("Qual o dado quer inserir?");
+
+        while (1)
+        {
+          if (Serial.available() > 0)
+          {
+            subdado = Serial.readString();
+            if (subdado.equals("false"))
+              subdado = false;
+            if (subdado.equals("true"))
+              subdado = true;
+            if (subdado == data[_interface][dado])
+              vTaskDelete(NULL);
+            break;
+          }
+          vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        files.ChangeInterface(_interface, dado, subdado);
+
+        files.list("/interface.json"); // Debug
+        break;
+      }
+
+      vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    vTaskDelete(NULL);
+  }
+}
+
+void vEnviosTimer(TaskHandle_t EnviosHandle)
 {
   bool alt;
   String sensor;
@@ -489,125 +533,39 @@ void vMeshSend(void *pvParameters)
         coefficients[c] = files.getCoef(sensor, j, c);
       }
       float rmsValue = !alt ? SensorV.readRMS(j, coefficients) : SensorI.readRMS(j, coefficients);
-      // Serial.println(rmsValue);
       info[sensor][j] = rmsValue;
     }
   }
   String str;
   serializeJson(info, str);
-  // serializeJson(data, Serial);
 
-  if (lora.idRead() == 1)
+  if (interface.equals("LoRaMesh"))
   {
-    lora.sendMaster(str);
-    debugPrint("LoraMesh Send.");
-  }
-  str = "";
-  vTaskDelete(NULL);
-}
-
-// void callbackFunction(){
-
-// }
-
-void vWiFiMQQT(void *pvParameters)
-{
-  while (1)
-  {
-    // Lê e empacota os dados dos sensores
-    // transformar em task? é preciso chamar em outras tasks a mesma sequencia de comandos
-    bool alt;
-    String sensor;
-    JsonDocument info;
-    float coefficients[DEGREE];
-    for (int i = 0; i < 2; i++)
+    if (lora.idRead() == 1)
     {
-      if (i == 0)
-      {
-        sensor = "V";
-        alt = false;
-      }
-      else
-      {
-        sensor = "I";
-        alt = true;
-      }
-      for (int j = 0; j < 3; j++)
-      {
-        for (int c = 0; c < DEGREE; c++)
-        {
-          coefficients[c] = files.getCoef(sensor, j, c);
-        }
-        float rmsValue = !alt ? SensorV.readRMS(j, coefficients) : SensorI.readRMS(j, coefficients);
-        // Serial.println(rmsValue);
-        info[sensor][j] = rmsValue;
-      }
+      lora.sendMaster(str);
+      debugPrint("LoraMesh Send.");
     }
-    String strJson;
-    if (debug)
-      serializeJson(info, Serial);
-    serializeJson(info, strJson);
-    const char *str = strJson.c_str();
-    int buffer = sizeof(str);
+  }
+  if (interface.equals("WiFi"))
+  {
+    const char *strWiFi = str.c_str();
+    int buffer = sizeof(strWiFi);
 
     if (!MQTTclient.connected())
     {
       debugPrint("Não conectado ao MQTT, reiniciando conexão");
-      break;
+      // todo: chamar initialize interface
     }
-    Serial.println(str);
-    MQTTclient.publish(AWS_IOT_PUBLISH_TOPIC, str);
+
+    MQTTclient.publish(AWS_IOT_PUBLISH_TOPIC, strWiFi);
     MQTTclient.loop();
     debugPrint("Enviado.");
-
-    vTaskDelete(NULL);
   }
-}
 
-void vInterfaceChange(void *pvParameters)
-{
-  String _interface, dado, subdado;
-  Serial.println("Qual interface");
-  while (1)
+  if (interface.equals("PPP"))
   {
-    if (Serial.available() > 0)
-    {
-      _interface = Serial.readString();
-      if (!_interface.equals("WiFi") && !_interface.equals("LoRaMESH") && !_interface.equals("PPP"))
-        break;
-      Serial.print("Qual tipo de dado quer inserir?");
-      while (1)
-      {
-        if (Serial.available() > 0)
-        {
-          dado = Serial.readString();
-          if (data[_interface].containsKey(dado))
-            break;
-          else
-            Serial.println("Tipo não identificado. Insira novamente:");
-        }
-        vTaskDelay(pdMS_TO_TICKS(100));
-      }
-      Serial.print("Qual o dado quer inserir?");
-      while (1)
-      {
-        if (Serial.available() > 0)
-        {
-          subdado = Serial.readString();
-          if (subdado == data[_interface][dado])
-            continue;
-          break;
-        }
-        vTaskDelay(pdMS_TO_TICKS(100));
-      }
-      files.ChangeInterface(_interface, dado, subdado);
-      Serial.flush();
-
-      files.list("/interface.json"); // Debug
-      break;
-    }
-
-    vTaskDelay(pdMS_TO_TICKS(100));
   }
+
   vTaskDelete(NULL);
 }
