@@ -126,6 +126,15 @@ def main():
     flagCurrent = False
     READS = 6
     
+    ser.write(b"ChangeInterface")
+    while True:
+        send = ser.readline().decode('utf-8').rstrip()
+        if send == "Qual interface?":
+            ser.write(b"debug")
+            break
+    
+    time.sleep(1)
+    
     while continueCalibration:
         channel = set_channel()
         
@@ -203,7 +212,14 @@ def main():
                     channel = set_channel()
                     continueCalibration = False
                     break
-          
+                
+    ser.write(b"ChangeInterface")
+    while True:
+        send = ser.readline().decode('utf-8').rstrip()
+        if send == "Qual interface?":
+            ser.write(b"debug")
+            break
+              
     ser.close()
 
 if __name__ == "__main__":

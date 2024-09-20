@@ -18,6 +18,7 @@ public:
     void insCoef(String _sensor, int channel, float coefficients[]);
     float getCoef(String _sensor, int channel, int coefficient);
     void format();
+    void ChangeInterface();
     void ChangeInterface(String interface, bool status);
     void ChangeInterface(String interface, String dado, String subdado);
     void ChangeInterface(String interface, String dado, String subdado, bool status);
@@ -55,7 +56,7 @@ JsonDocument MySPIFFS::begin()
     File file = SPIFFS.open("/interface.json", FILE_READ);
     JsonDocument data;
     deserializeJson(data, file);
-    serializeJson(data, Serial);
+    // serializeJson(data, Serial);
     file.close();
     return data;
 }
@@ -102,10 +103,6 @@ void MySPIFFS::initInterface()
 
     // Dados referente à comunicação WiFi
     data["WiFi"]["Status"] = false;
-    // data["WiFi"]["SSID"] = "PTHREAD";
-    // data["WiFi"]["Password"] = "fifo2rrobin";
-    // data["WiFi"]["SSID"] = "JoaoMarcos";
-    // data["WiFi"]["Password"] = "TestesMIC";
     data["WiFi"]["SSID"] = "FREUD_EXPLICA_2.4G";
     data["WiFi"]["Password"] = "02040608";
     data["WiFi"]["THINGNAME"] = "SmartMeter";
@@ -135,6 +132,24 @@ void MySPIFFS::initInterface()
     file.close();
 }
 
+void MySPIFFS::ChangeInterface()
+{
+    File file = SPIFFS.open("/interface.json", FILE_READ);
+    JsonDocument data;
+    DeserializationError error = deserializeJson(data, file);
+    file.close();
+
+    data["debug"] = !data["debug"];
+
+    file = SPIFFS.open("/interface.json", FILE_WRITE);
+    serializeJson(data, file);
+    file.close();
+
+    serializeJson(data, Serial);
+
+    ESP.restart();
+}
+
 void MySPIFFS::ChangeInterface(String interface, bool status)
 {
     ChangeInterface(interface, "", "", status);
@@ -147,19 +162,16 @@ void MySPIFFS::ChangeInterface(String interface, String dado, String subdado)
 
 void MySPIFFS::ChangeInterface(String interface, String dado, String subdado, bool status)
 {
+    // Serial.print(interface); Serial.println(status);
     File file = SPIFFS.open("/interface.json", FILE_READ);
     JsonDocument data;
     DeserializationError error = deserializeJson(data, file);
 
-    serializeJson(data, Serial);
-    // error can be used for debugging
     file.close();
-
-    Serial.println("Salvou");
 
     data[interface][dado] = subdado;
 
-    if (status != NULL)
+    if (status || !status)
     {
         if (data["WiFi"]["Status"])
             data["WiFi"]["Status"] = false;
@@ -176,6 +188,10 @@ void MySPIFFS::ChangeInterface(String interface, String dado, String subdado, bo
     file = SPIFFS.open("/interface.json", FILE_WRITE);
     serializeJson(data, file);
     file.close();
+
+    serializeJson(data, Serial);
+
+    ESP.restart();
 }
 
 /*
@@ -197,7 +213,6 @@ String MySPIFFS::read(String path)
 void MySPIFFS::list(String path)
 {
     File file = SPIFFS.open(path, FILE_READ);
-    // Serial.println(path);
     if (!file)
     {
         Serial.println("Error opening file for reading");
