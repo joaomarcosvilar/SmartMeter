@@ -19,8 +19,8 @@
 #define vREADY_PIN 18
 #define iREADY_PIN 19
 
-ADSreads SensorV(vREADY_PIN, 0x48);
-ADSreads SensorI(iREADY_PIN, 0x4B);
+ADSreads SensorV(vREADY_PIN, 0x48); // 72
+ADSreads SensorI(iREADY_PIN, 0x4B); // 75
 
 void IRAM_ATTR onVReady() { SensorV.onNewDataReady(); }
 void IRAM_ATTR onIReady() { SensorI.onNewDataReady(); }
@@ -160,14 +160,14 @@ void vInitializeInterface(void *pvParameters)
   if (debug)
   {
     serializeJson(data, Serial);
-    Serial.println(interface);
   }
 
   // Inicializa o LoRaMesh
   if (data["LoRaMESH"]["Status"])
   {
-    lora.begin(data);
     interface = "LoRaMESH";
+    Serial.println("Interface inicializada: " + interface);
+    lora.begin(data);
   }
 
   // Inicializa o WiFi e conecta com o broker MQTT
@@ -175,6 +175,9 @@ void vInitializeInterface(void *pvParameters)
   {
     const char *ssid = data["WiFi"]["SSID"];
     const char *password = data["WiFi"]["Password"];
+
+    interface = "WiFi";
+    Serial.println("Interface inicializada: " + interface);
 
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
@@ -190,12 +193,16 @@ void vInitializeInterface(void *pvParameters)
         ESP.restart();
       }
     }
-    Serial.println(String(WiFi.localIP()));
+    Serial.println();
+    Serial.println("IP: " + WiFi.localIP());
+    Serial.println("SSID: " + WiFi.SSID());
   }
+
   // Inicializa protocolo GSM
   if (data["PPP"]["Status"])
   {
     interface = "PPP";
+    Serial.println("Interface inicializada: " + interface);
   }
 
   if ((data["WiFi"]["Status"]) || (data["PPP"]["Status"]))
@@ -231,8 +238,6 @@ void vInitializeInterface(void *pvParameters)
     MQTTclient.subscribe(AWS_IOT_SUBSCRIBE_TOPIC);
 
     Serial.println("AWS IoT Connected!");
-
-    interface = "WiFi";
   }
   vTaskDelete(NULL); // Autodelete
 }
@@ -264,6 +269,10 @@ void vSend(void *pvParameters)
         coefficients[c] = files.getCoef(sensor, j, c);
       }
       float rmsValue = !alt ? SensorV.readRMS(j, coefficients) : SensorI.readRMS(j, coefficients);
+      if (rmsValue < 0)
+      {
+        rmsValue = 0;
+      }
       info[sensor][j] = rmsValue;
     }
   }
@@ -312,6 +321,7 @@ void vSerial(void *pvParameters)
         xEventGroupSetBits(xEventGroup, INSERT_COEFICIENTS);
       if (inputString.equals("ChangeInterface"))
         xEventGroupSetBits(xEventGroup, CHANGE_INTERFACE);
+
       if (debug)
       {
         if (inputString.equals("InitializeInterface"))
@@ -319,8 +329,15 @@ void vSerial(void *pvParameters)
           xTaskCreate(vInitializeInterface, "InitializeInterface", 4096, NULL, 1, &InsertCoefficientsHandle);
           xTimerStart(TimerHandle, pdMS_TO_TICKS(100));
         }
-        // if (inputString.equals("DEBUG"))
-        // TODO: fazer a alternância do modo debug
+        if (inputString.equals("Format"))
+        {
+          files.format();
+          ESP.restart();
+        }
+        if (inputString.equals("List Coefficients"))
+        {
+          files.list("/calibration.txt");
+        }
       }
       inputString = "";
     }
@@ -361,14 +378,14 @@ void vCalibration(void *pvParameters)
   Serial.println("OK_1");
   Serial.flush();
 
-  int channel = 0;
+  int channel = -1;
   bool alt = false;
   String sensor = "V";
 
   unsigned long starttime = millis();
   while (true)
   {
-    if (Serial.available() > 0)
+    if (Serial.available() > 1)
     {
       String inputString = Serial.readString();
       Serial.flush();
@@ -377,9 +394,10 @@ void vCalibration(void *pvParameters)
       String sensor = inputString.substring(limiter + 1);
       channel = str_channel.toInt();
 
-      if ((!(sensor.equals("V")) && !(sensor.equals("I"))))
+      if (((!(sensor.equals("V")) && !(sensor.equals("I"))) || (channel == -1)))
       {
-        Serial.println("aqui");
+        Serial.println(inputString);
+        Serial.println("Sensor: " + sensor + "\nChannel: " + String(channel));
         break;
       }
 
@@ -503,18 +521,24 @@ void vInsertCoefficients(void *pvParameters)
 
 void vInterfaceChange(void *pvParameters)
 {
-  xTimerStop(TimerHandle, 0);  // Pausa o Timer enquanto a interface é alterada
+
+  xTimerStop(TimerHandle, 0); // Pausa o Timer enquanto a interface é alterada
+
+  // TODO: Tem q esperar o termino de envio para poder seguir
 
   String _interface = "", dado = "", subdado = "";
   Serial.println("Qual interface?");
-  
+
   while (1)
   {
     if (Serial.available() > 0)
     {
       _interface = Serial.readString();
-      if(_interface.equals("debug")){
+      // Serial.println("leu: " + _interface);
+      if (_interface.equals("debug"))
+      {
         files.ChangeInterface();
+        ESP.restart();
       }
 
       if (!_interface.equals("WiFi") && !_interface.equals("LoRaMESH") && !_interface.equals("PPP"))
@@ -533,14 +557,14 @@ void vInterfaceChange(void *pvParameters)
 
           if (data[_interface].containsKey(dado))
           {
-            break;  
+            break;
           }
           else
           {
             Serial.println("Tipo de dado não identificado. Tente novamente:");
           }
         }
-        vTaskDelay(pdMS_TO_TICKS(100));  
+        vTaskDelay(pdMS_TO_TICKS(100));
       }
 
       Serial.println("Insira o valor do dado:");
@@ -572,12 +596,12 @@ void vInterfaceChange(void *pvParameters)
             break;
           }
         }
-        vTaskDelay(pdMS_TO_TICKS(100));  
+        vTaskDelay(pdMS_TO_TICKS(100));
       }
 
       files.ChangeInterface(_interface, dado, subdado);
       files.list("/interface.json");
-      break; 
+      break;
     }
     vTaskDelay(pdMS_TO_TICKS(100));
   }
