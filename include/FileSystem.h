@@ -18,6 +18,7 @@ public:
     void insCoef(String _sensor, int channel, float coefficients[]);
     float getCoef(String _sensor, int channel, int coefficient);
     void format();
+    void ChangeInterface();
     void ChangeInterface(String interface, bool status);
     void ChangeInterface(String interface, String dado, String subdado);
     void ChangeInterface(String interface, String dado, String subdado, bool status);
@@ -55,7 +56,7 @@ JsonDocument MySPIFFS::begin()
     File file = SPIFFS.open("/interface.json", FILE_READ);
     JsonDocument data;
     deserializeJson(data, file);
-    serializeJson(data, Serial);
+    // serializeJson(data, Serial);
     file.close();
     return data;
 }
@@ -73,18 +74,32 @@ void MySPIFFS::initCalibration()
         if (i == 0)
         {
             sensor = "V";
+            for (int j = 0; j < 3; j++)
+            {
+                data[sensor][j][0] = -9035.0;
+                data[sensor][j][1] = 47880.0;
+                data[sensor][j][2] = -63221.0;
+            }
+
+            // {"V":[[-9035,47880,-63221],[0,0,0],[0,0,0]],"I":[[1331.170044,-3398.409912,0],[0,0,0],[0,0,0]]}
         }
         else
         {
             sensor = "I";
-        }
-        for (int j = 0; j < 3; j++)
-        {
-            for (int c = 0; c < DEGREE; c++)
+            for (int j = 0; j < 3; j++)
             {
-                data[sensor][j][c] = DEFAULT_Coef;
+                data[sensor][j][0] = 1331.170044;
+                data[sensor][j][1] = -3398.409912;
+                data[sensor][j][2] = 0.0;
             }
         }
+        // for (int j = 0; j < 3; j++)
+        // {
+        //     for (int c = 0; c < DEGREE; c++)
+        //     {
+        //         data[sensor][j][c] = DEFAULT_Coef;
+        //     }
+        // }
     }
 
     String str;
@@ -100,12 +115,11 @@ void MySPIFFS::initInterface()
     // Debug
     data["debug"] = true;
 
+    // Tempo de envio
+    data["TIMER"] = 5000;
+
     // Dados referente à comunicação WiFi
     data["WiFi"]["Status"] = false;
-    // data["WiFi"]["SSID"] = "PTHREAD";
-    // data["WiFi"]["Password"] = "fifo2rrobin";
-    // data["WiFi"]["SSID"] = "JoaoMarcos";
-    // data["WiFi"]["Password"] = "TestesMIC";
     data["WiFi"]["SSID"] = "FREUD_EXPLICA_2.4G";
     data["WiFi"]["Password"] = "02040608";
     data["WiFi"]["THINGNAME"] = "SmartMeter";
@@ -135,38 +149,47 @@ void MySPIFFS::initInterface()
     file.close();
 }
 
-// TODO: Quando receber valores numerais, precisa salvar como numeral, não como string
+void MySPIFFS::ChangeInterface()
+{
+    File file = SPIFFS.open("/interface.json", FILE_READ);
+    JsonDocument data;
+    DeserializationError error = deserializeJson(data, file);
+    file.close();
+
+    data["debug"] = !data["debug"];
+
+    file = SPIFFS.open("/interface.json", FILE_WRITE);
+    serializeJson(data, file);
+    file.close();
+
+    serializeJson(data, Serial);
+
+    ESP.restart();
+}
+
 void MySPIFFS::ChangeInterface(String interface, bool status)
 {
-    // Serial.println("Passou aqui");
     ChangeInterface(interface, "", "", status);
 }
 
 void MySPIFFS::ChangeInterface(String interface, String dado, String subdado)
 {
-    // Serial.println("Passou aqui 2");
     ChangeInterface(interface, dado, subdado, NULL);
 }
 
 void MySPIFFS::ChangeInterface(String interface, String dado, String subdado, bool status)
 {
-    // Serial.println("Passou aqui 3");
+    // Serial.print(interface); Serial.println(status);
     File file = SPIFFS.open("/interface.json", FILE_READ);
     JsonDocument data;
     DeserializationError error = deserializeJson(data, file);
 
-    serializeJson(data, Serial);
-    // error can be used for debugging
     file.close();
-    Serial.println();
-    Serial.println("Salvou");
 
     data[interface][dado] = subdado;
 
-    if ((status == false) || (status == true))
+    if (status || !status)
     {
-        // Serial.println("Passou aqui 4");
-        // Serial.println(String(status));
         if (data["WiFi"]["Status"])
             data["WiFi"]["Status"] = false;
 
@@ -176,12 +199,16 @@ void MySPIFFS::ChangeInterface(String interface, String dado, String subdado, bo
         if (data["PPP"]["Status"])
             data["PPP"]["Status"] = false;
 
-        data[interface]["Status"] = status;
+        data[interface]["Status"] = true;
     }
 
     file = SPIFFS.open("/interface.json", FILE_WRITE);
     serializeJson(data, file);
     file.close();
+
+    serializeJson(data, Serial);
+
+    ESP.restart();
 }
 
 /*
@@ -203,7 +230,6 @@ String MySPIFFS::read(String path)
 void MySPIFFS::list(String path)
 {
     File file = SPIFFS.open(path, FILE_READ);
-    // Serial.println(path);
     if (!file)
     {
         Serial.println("Error opening file for reading");
@@ -232,6 +258,7 @@ void MySPIFFS::insCoef(String _sensor, int channel, float coefficients[])
 
     file = SPIFFS.open("/calibration.txt", FILE_WRITE);
     String str;
+    serializeJson(data, Serial);
     serializeJson(data, str);
     file.print(str);
     file.close();

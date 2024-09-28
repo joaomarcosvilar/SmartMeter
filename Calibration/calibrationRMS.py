@@ -111,6 +111,8 @@ def calculate_coefficients(TRUErms, SensorRMS):
     
     return coefficients
 
+
+
 def main():
     try:
         port = find_serial_port()
@@ -125,6 +127,17 @@ def main():
     continueCalibration = True
     flagCurrent = False
     READS = 6
+    
+    ser.write(b"ChangeInterface")
+    while True:
+        send = ser.readline().decode('utf-8').rstrip()
+        if send == "Qual interface?":
+            ser.write(b"debug")
+            break
+    
+    
+    time.sleep(2)
+    
     
     while continueCalibration:
         channel = set_channel()
@@ -143,12 +156,19 @@ def main():
                 print(f"Calibrating Current, channel {channel}, Irms: {rms}")
                 flagCurrent = False
                 sensor = "I"
-                
+            
+            i = 0
             TRUErms.append(rms)
             ser.write(b"Calibration")
             while True:
                 send = ser.readline().decode('utf-8').rstrip()
                 print(f"Board response: {send}")
+                i += 1
+                
+                 # Caso qualquer outra informação chegar, tenta novamente como 5 vezes
+                if i > 5:
+                    ser.write(b"Calibration")
+                    i = 0
                 
                 if send == "Time Out":
                     continueCalibration = False
@@ -159,9 +179,45 @@ def main():
                     print(f"Sending command: {send}")
                     ser.write(send.encode())
                     rms = collect_dynamic_data(ser,channel,sensor)
+                    
                     if rms != 0.0:
-                        SensorRMS.append(rms)
-                        break
+                        if len(TRUErms) > 2:
+                            # -----------------------------------------------------------------------------------------------#
+                            # Faz tratamento de leitura, caso o RMS seja não equivalente à sequencia, deleta o dado
+                            # Exemplo: 2,48769826	143
+                                    #  2,41678483	142,5
+                                    #  2,43030942	71
+                            # O valor para a leitura em 142,5 Vrms está fora do intervalo de leitura do outros dois valores. 
+                            # Então será deletado o TrueRMS e não adicionado o SensorRMS.
+                            indexMaior = 0
+                            indexMenor = 0
+                            valueMaior = None
+                            valueMenor = None
+                            i = 0
+                            
+                            for v in TRUErms:
+                                if v < TRUErms[-1]:
+                                    if valueMenor is None or v > valueMenor:
+                                        valueMenor = v
+                                        indexMenor = i
+                                if v > TRUErms[-1]:
+                                    if valueMaior is None or v > valueMaior:
+                                        valueMaior = v
+                                        indexMaior = i   
+                                i += 1
+                            
+                            # Verifica se o SensorRMS está dentro do intervalor esperado
+                            if rms > TRUErms[indexMenor] and rms < TRUErms[indexMaior]:
+                                SensorRMS.append(rms)
+                            else:
+                                TRUErms.pop()
+                        
+                            i = 0
+                            break 
+                    else:
+                        SensorRMS.append(rms)                                                
+            # -----------------------------------------------------------------------------------------------#
+        
         
         # Calcula os coeficientes para as leituras RMS
         coefficients = calculate_coefficients(TRUErms, SensorRMS)
@@ -193,17 +249,24 @@ def main():
             if sensor == "V":
                     if input("Calibrate Current this channel? (Y/N): ").strip().upper() == "Y":
                         flagCurrent = True
-                    if input("Calibrate another channel? (Y/N): ").strip().upper() == "Y":
+                    if input("Calibrate Current another channel? (Y/N): ").strip().upper() == "Y":
                         channel = set_channel()
-                        continueCalibration = False
+                        continueCalibration = True
                         break
                         
             else:
-                if input("Calibrate another channel? (Y/N): ").strip().upper() == "Y":
+                if input("Calibrate another channel? (Y/N): ").strip().upper() == "N":
                     channel = set_channel()
                     continueCalibration = False
                     break
-          
+                
+    ser.write(b"ChangeInterface")
+    while True:
+        send = ser.readline().decode('utf-8').rstrip()
+        if send == "Qual interface?":
+            ser.write(b"debug")
+            break
+              
     ser.close()
 
 if __name__ == "__main__":
