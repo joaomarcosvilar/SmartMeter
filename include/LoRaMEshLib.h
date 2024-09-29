@@ -11,6 +11,7 @@ public:
     void begin(JsonDocument data);
     void sendMaster(String dados);
     int idRead();
+    void RSSI(int id);
 
 private:
     HardwareSerial *_serial;
@@ -32,24 +33,26 @@ void LoRaEnd::begin(JsonDocument _data)
 {
     data.set(_data);
     _serial->begin(data["LoRaMESH"]["Baudrate"], SERIAL_8N1, _RXpin, _TXpin);
-    lora.begin(true);
+
+    if (data["debug"])
+        lora.begin(true);
+    else
+        lora.begin();
 
     if (lora.localId != data["LoRaMESH"]["ID"])
     {
         lora.setnetworkId(data["LoRaMESH"]["ID"]);
         lora.setpassword(data["LoRaMESH"]["Password"]);
 
-        // TODO: traduzir os dados do JSON para cada config
+        // TODO: traduzir os dados do ChangeInterface para uint8_t
         // Config abaixa usada por padrão
-        lora.config_bps(BW125, SF_LoRa_7, CR4_5);
-        lora.config_class(LoRa_CLASS_C, LoRa_WINDOW_15s);
-        
-
+        lora.config_bps(data["LoRaMESH"]["BD"], data["LoRaMESH"]["SF"], data["LoRaMESH"]["CRate"]);
+        lora.config_class(data["LoRaMESH"]["Class"], data["LoRaMESH"]["Window"]);
     }
 
-    // Serial.println("LocalID: " + String(lora.localId));
-    // Serial.println("UniqueID: " + String(lora.localUniqueId));
-    // Serial.println("Pass <= 65535: " + String(lora.registered_password));
+    Serial.println("LocalID: " + String(lora.localId));
+    Serial.println("UniqueID: " + String(lora.localUniqueId));
+    Serial.println("Pass <= 65535: " + String(lora.registered_password));
     // rotina de indentificação de conexão
 }
 
@@ -70,15 +73,50 @@ void LoRaEnd::sendMaster(String dados)
     {
         if (lora.SendPacket())
         {
-            // Serial.println("Pacote enviado com sucesso!");
+            Serial.println("----------------Enviado por LoRaMESH----------------");
+            Serial.println("\tTamanho: " + String(lora.frame.size));
+            // Serial.println("\tRSSI: " + String(RSSI(id))); < - Só mestre pode fazer leitura de RSSI
         }
         else
         {
-            // Serial.println("Falha ao enviar o pacote!");
+            Serial.println("Falha ao enviar o pacote!");
         }
     }
-    else
+    // else
+    // {
+    //     // Serial.println("Falha ao preparar o pacote!");
+    // }
+}
+
+// Ainda falta aqui, só mestre pode fazer leitura
+void LoRaEnd::RSSI(int id)
+{
+    if (lora.localId != 0)
     {
-        // Serial.println("Falha ao preparar o pacote!");
+        // 0xD5
+        uint8_t b = 0;
+        uint8_t bufferPayload[MAX_PAYLOAD_SIZE] = {0};
+        bufferPayload[b] = 0x00;
+        bufferPayload[++b] = 0x00;
+        bufferPayload[++b] = 0x00;
+
+        lora.PrepareFrameCommand(id /*id do mestre*/, 0xD5, bufferPayload, b + 1);
+        lora.SendPacket();
+
+        /*
+            Envia: 01 00 D5 00 00 00 1A 1D
+                    ^-ID ^-Command    ^--^-CRC
+            Recebe: 01 00 D5 00 00 32 37 05 05 38 23 EC AC
+                    ^-ID ^-Command  ^ ^-volta   ^--^--^--^--^--^-CRC
+                                    |_ ida
+        */
+        if (lora.ReceivePacketCommand(&lora.localId, &lora.command, bufferPayload, &lora.payloadSize, 1000))
+        {
+            if (lora.command == 0xD5)
+            {
+                
+            }
+        }
     }
+    Serial.println("Only the master can read the RSSI.");
 }

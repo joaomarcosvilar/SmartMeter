@@ -21,6 +21,7 @@ public:
     void ChangeInterface();
     void ChangeInterface(String interface, bool status);
     void ChangeInterface(String interface, String dado, String subdado);
+    void ChangeInterface(String interface, String dado, int subdado);
     void ChangeInterface(String interface, String dado, String subdado, bool status);
     void readALL();
 
@@ -116,7 +117,7 @@ void MySPIFFS::initInterface()
     data["debug"] = true;
 
     // Tempo de envio
-    data["TIMER"] = 5000;
+    data["timer"] = 5000;
 
     // Dados referente à comunicação WiFi
     data["WiFi"]["Status"] = false;
@@ -127,14 +128,14 @@ void MySPIFFS::initInterface()
 
     // LoRaMESH: é a comunicação DEFAULT_Coef, precisa configurar o LoRaMesh na inicialização
     data["LoRaMESH"]["Status"] = true;
-    data["LoRaMESH"]["ID"] = 1;         /* ID: 0 é mestre, e 1-2046 é escravo  OBS.: Não existe função para
-                                             indentificar se existe outros ID idênticos. Ideia é atribuir cada
-                                             pelo número do dispositivo produzido.*/
-    data["LoRaMESH"]["BD"] = 500;       // Bandwith: 125KHz, 250KHz e 500KHz
-    data["LoRaMESH"]["SF"] = 7;         // SpreadingFactor: 7 - 12
-    data["LoRaMESH"]["CRate"] = 5;      // Coding Rate: 4/5,4/6,4/7,4/8
-    data["LoRaMESH"]["Class"] = "C";    // Classe: A e C
-    data["LoRaMESH"]["Window"] = 15;    // Janela: 5, 10 e 15s
+    data["LoRaMESH"]["ID"] = -1;         /* ID: 0 é mestre, e 1-2046 é escravo  OBS.: Não existe função para
+                                             identificar se existe outros ID idênticos. Cada ID é utilizado
+                                             identificar qual o dispositivo SmartMeter.*/
+    data["LoRaMESH"]["BD"] = BW500;       // Bandwith: 125KHz, 250KHz e 500KHz
+    data["LoRaMESH"]["SF"] = SF_LoRa_7;         // SpreadingFactor: 7 - 12
+    data["LoRaMESH"]["CRate"] = CR4_5;      // Coding Rate: 4/5,4/6,4/7,4/8
+    data["LoRaMESH"]["Class"] = LoRa_CLASS_C;    // Classe: A e C
+    data["LoRaMESH"]["Window"] = LoRa_WINDOW_15s;    // Janela: 5, 10 e 15s
     data["LoRaMESH"]["Password"] = 123; // Senha: <= 65535
     data["LoRaMESH"]["Baudrate"] = 9600;
 
@@ -175,6 +176,11 @@ void MySPIFFS::ChangeInterface(String interface, bool status)
 void MySPIFFS::ChangeInterface(String interface, String dado, String subdado)
 {
     ChangeInterface(interface, dado, subdado, NULL);
+}
+
+void MySPIFFS::ChangeInterface(String interface, String dado, int subdado)
+{
+    ChangeInterface(interface, dado, String(subdado), NULL);
 }
 
 void MySPIFFS::ChangeInterface(String interface, String dado, String subdado, bool status)

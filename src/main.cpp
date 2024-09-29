@@ -54,6 +54,9 @@ EventGroupHandle_t xEventGroup;
 #define INSERT_COEFICIENTS (1 << 2)
 #define CHANGE_INTERFACE (1 << 3)
 
+// EventGroupHandle_t xEnviando;
+#define ENVIANDO (1 << 4)
+
 void vTimer(TaskHandle_t TimerHandle);
 
 #define SAMPLES 2680
@@ -73,9 +76,35 @@ void setup()
 {
   data = files.begin();
   debug = data["debug"];
+  // debug =  true;
+  const int timer = data["timer"];
 
   // Inicializa o Serial
   Serial.begin(115200);
+
+  // Verifica se já identificado o device
+  if (data["LoRaMESH"]["ID"] == -1)
+  {
+    Serial.println("Digite o ID do device: ");
+    while (1)
+    {
+      if (Serial.available() > 1)
+      {
+        int ID = Serial.readString().toInt();
+        if ((ID > 0) || (ID < 2046))
+        {
+          // TODO: precisa verificar se existe outros dispositivos com mesmo ID
+          files.ChangeInterface("LoRaMESH", "ID", ID);
+          break;
+        }
+        else
+        {
+          Serial.println("ID invalido. Insira novamente: ");
+        }
+      }
+      vTaskDelay(pdMS_TO_TICKS(100));
+    }
+  }
 
   // Interrupções de leituras dos ADS
   attachInterrupt(digitalPinToInterrupt(vREADY_PIN), onVReady, FALLING);
@@ -88,6 +117,9 @@ void setup()
 
   // Cria o EventGroup
   xEventGroup = xEventGroupCreate();
+  // xEnviando = xEventGroupCreate();
+
+  // Cria Timer para envios
   TimerHandle = xTimerCreate("TimerEnvios", pdMS_TO_TICKS(TIMER), pdTRUE, (void *)0, vTimer);
 
   // Cria as tasks
@@ -122,7 +154,7 @@ void vSelectFunction(void *pvParameters)
   EventBits_t bits;
   while (1)
   {
-    bits = xEventGroupWaitBits(xEventGroup, ENVIO | CALIBRATION | INSERT_COEFICIENTS, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
+    bits = xEventGroupWaitBits(xEventGroup, ENVIO | CALIBRATION | INSERT_COEFICIENTS | CHANGE_INTERFACE, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
     if (bits & ENVIO)
     {
       xTaskCreate(vSend, "Send", 4096, NULL, 2, &SendHandle);
@@ -229,8 +261,8 @@ void vInitializeInterface(void *pvParameters)
 
     while (!MQTTclient.connect(THINGNAME))
     {
-      Serial.println(String(MQTTclient.state()));
       Serial.println(".");
+      Serial.println(String(MQTTclient.state()));
     }
     vTaskDelay(pdMS_TO_TICKS(100));
 
@@ -244,10 +276,14 @@ void vInitializeInterface(void *pvParameters)
 
 void vSend(void *pvParameters)
 {
+  xTimerStop(TimerHandle, 0);
   // Serial.println(interface);
   bool alt;
   String sensor;
   JsonDocument info;
+  char buffer[10];  // Buffer para armazenar a string formatada
+
+  info["ID"] = data["LoRaMESH"]["ID"];
 
   float coefficients[DEGREE];
   for (int i = 0; i < 2; i++)
@@ -269,10 +305,16 @@ void vSend(void *pvParameters)
         coefficients[c] = files.getCoef(sensor, j, c);
       }
       float rmsValue = !alt ? SensorV.readRMS(j, coefficients) : SensorI.readRMS(j, coefficients);
+      
+      // Quando valores negativos, identifica como dispositivo desconectado
       if (rmsValue < 0)
       {
         rmsValue = 0;
       }
+
+      // Tratamento para não armazenar valores com mais de 2 casas decimais:
+      dtostrf(rmsValue, 1, 2, buffer);
+      rmsValue = atof(buffer); 
       info[sensor][j] = rmsValue;
     }
   }
@@ -283,6 +325,7 @@ void vSend(void *pvParameters)
   {
     lora.sendMaster(str);
   }
+
   if (interface.equals("WiFi"))
   {
     const char *strWiFi = str.c_str();
@@ -294,15 +337,19 @@ void vSend(void *pvParameters)
       // todo: chamar initialize interface
     }
 
-    MQTTclient.publish(AWS_IOT_PUBLISH_TOPIC, strWiFi);
+    if (MQTTclient.publish(AWS_IOT_PUBLISH_TOPIC, strWiFi))
+    {
+      Serial.println("Enviado por WiFi. Tamanho: " + String(MQTTclient.getBufferSize()));
+    }
+
     MQTTclient.loop();
-    Serial.println("Enviado.");
   }
 
   if (interface.equals("PPP"))
   {
   }
-
+  xEventGroupSetBits(xEventGroup, ENVIANDO);
+  xTimerStart(TimerHandle, 0);
   vTaskDelete(NULL);
 }
 
@@ -310,6 +357,7 @@ void vSerial(void *pvParameters)
 {
   unsigned long start = millis();
   String inputString = "";
+
   while (1)
   {
     if (Serial.available() > 1)
@@ -322,23 +370,25 @@ void vSerial(void *pvParameters)
       if (inputString.equals("ChangeInterface"))
         xEventGroupSetBits(xEventGroup, CHANGE_INTERFACE);
 
-      if (debug)
+      if (inputString.equals("InitializeInterface"))
       {
-        if (inputString.equals("InitializeInterface"))
-        {
-          xTaskCreate(vInitializeInterface, "InitializeInterface", 4096, NULL, 1, &InsertCoefficientsHandle);
-          xTimerStart(TimerHandle, pdMS_TO_TICKS(100));
-        }
-        if (inputString.equals("Format"))
-        {
-          files.format();
-          ESP.restart();
-        }
-        if (inputString.equals("List Coefficients"))
-        {
-          files.list("/calibration.txt");
-        }
+        xTaskCreate(vInitializeInterface, "InitializeInterface", 4096, NULL, 1, &InsertCoefficientsHandle);
+        xTimerStart(TimerHandle, pdMS_TO_TICKS(100));
       }
+      if (inputString.equals("Format"))
+      {
+        files.format();
+        ESP.restart();
+      }
+      if (inputString.equals("List Coefficients"))
+      {
+        files.list("/calibration.txt");
+      }
+      if (inputString.equals("List Interface"))
+      {
+        files.list("/interface.json");
+      }
+
       inputString = "";
     }
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -519,14 +569,30 @@ void vInsertCoefficients(void *pvParameters)
   ESP.restart();
 }
 
+// TODO: mudar lógica de leitura e envio (MESH recebe as configs uint8_t) e verficar entrada para o tipo
+/*inserção de dados do interface:
+  WiFi -ssid PTHREAD -pwd fifo2rrobin
+  usar substring
+verificação de escrita para o tipo de leitura*/
 void vInterfaceChange(void *pvParameters)
 {
-
-  xTimerStop(TimerHandle, 0); // Pausa o Timer enquanto a interface é alterada
 
   // TODO: Tem q esperar o termino de envio para poder seguir
 
   String _interface = "", dado = "", subdado = "";
+
+  EventBits_t bits;
+  while (1)
+  {
+    bits = xEventGroupWaitBits(xEventGroup, ENVIANDO, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
+    if ((bits & ENVIANDO) || debug)
+    {
+      xTimerStop(TimerHandle, 0); // Pausa o Timer enquanto a interface é alterada
+      vTaskDelete(SendHandle);
+      break;
+    }
+    vTaskDelay(pdMS_TO_TICKS(100));
+  }
   Serial.println("Qual interface?");
 
   while (1)
@@ -605,6 +671,5 @@ void vInterfaceChange(void *pvParameters)
     }
     vTaskDelay(pdMS_TO_TICKS(100));
   }
-
   vTaskDelete(NULL);
 }

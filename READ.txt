@@ -158,27 +158,18 @@ Esse valor garante que seu JSON será armazenado adequadamente no `DynamicJsonDo
 
 _______________________________________________________________________________________________________________
 TODO:
-inicialização informações da interface que está sendo usada, LOG do sistema
+
 
 MESH:
-pegar as config da PSIFFS para configurar o Mesh no begin
-sempre que enviar os pacotes pelo Mesh mostrar na tela o tamanho do pacote, valor RSSI do Mestre, distância entre o escravo e mestre, e SRN
-deixar claro os envios
+sempre que enviar os pacotes pelo Mesh mostrar valor RSSI do Mestre, distância entre o escravo e mestre, e SRN
+
 buscar o timer na spiffs ou usar o default
 
 BROKER WIFI:
 validade de envio dos pacotes, ou falha
+
 inicialização mostrar IP, SSID, o broker, informações do broker aws, tamanho de pacote, 
 
 
-inserção de dados do interface:
-  WiFi -ssid PTHREAD -pwd fifo2rrobin
-  usar substring
-verificação de escrita para o tipo de leitura
-
-confirmação de envio com interface: Enviado {interface}
-
 corrigir calibração
-
-
-para reproduzir o erro, 
+ 
