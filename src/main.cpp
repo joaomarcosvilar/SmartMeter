@@ -90,7 +90,7 @@ void setup()
     {
       if (Serial.available() > 0)
       {
-        String strID = Serial.readStringUntil(' ');
+        String strID = Serial.readStringUntil('\n');
         int ID = strID.toInt();
         if ((ID > 0) || (ID < 2046))
         {
@@ -174,7 +174,7 @@ void vSelectFunction(void *pvParameters)
     }
     if (bits & CHANGE_INTERFACE)
     {
-      xTaskCreate(vInterfaceChange, "InterfaceChange", 4096, NULL, 3, NULL);
+      xTaskCreate(vInterfaceChange, "InterfaceChange", 5 * 1024, NULL, 3, NULL);
       xEventGroupClearBits(xEventGroup, CHANGE_INTERFACE);
     }
 
@@ -594,7 +594,7 @@ void vInterfaceChange(void *pvParameters)
   }
   // TODO: Tem q esperar o termino de envio para poder seguir
 
-  String _interface, dado[5], subdado[5], SUBinputString;
+  String _interface, dado, subdado, SUBinputString;
 
   Serial.println("Comando AT: ");
   while (1)
@@ -610,7 +610,7 @@ void vInterfaceChange(void *pvParameters)
         ESP.restart();
       }
 
-      /*inserção de dados do interface:
+      /*inserção de dados do interface de Exemplo:
         WiFi -SSID JoaoMarcos -Password TestesMIC
         usar substring
       verificação de escrita para o tipo de leitura*/
@@ -623,39 +623,52 @@ void vInterfaceChange(void *pvParameters)
         Serial.println(_interface);
       }
 
+      if (_interface.equals("timer "))
+      {
+        _interface.replace(" ", "");
+        dado = inputString.substring(pos + 1, inputString.length());
+        dado.replace("\n","");
+        // Serial.println("dado: " + dado);
+        int setTimer = dado.toInt();
+        // Serial.println("Temporizador: " + setTimer);
+        files.ChangeInterface(_interface, "", setTimer);
+        break;
+      }
+
       inputString = inputString.substring(pos + 1, inputString.length());
-      // Serial.println(inputString);
-      int index = 0;
+
       while (1)
       {
+
         if (((pos = inputString.indexOf('-')) > 0) || (inputString.length() > 0))
         {
           SUBinputString = inputString.substring(0, pos);
           inputString = inputString.substring(SUBinputString.length() + 1, inputString.length());
 
           pos = SUBinputString.indexOf(' ');
-          dado[index] = SUBinputString.substring(0, pos);
-          subdado[index] = SUBinputString.substring(pos + 1, SUBinputString.length());
+          dado = SUBinputString.substring(0, pos);
+          subdado = SUBinputString.substring(pos + 1, SUBinputString.length());
           if (debug)
           {
-            Serial.print(index);
-            Serial.println("\tdado: " + dado[index] + "\tsubdado: " + subdado[index]);
+            Serial.println("\tdado: " + dado + "\tsubdado: " + subdado);
           }
 
+          // Faz limpeza dos " " que as Strings pode possuir
           _interface.replace(" ", "");
-          dado[index].replace(" ", "");
-          subdado[index].replace(" ", "");
+          dado.replace(" ", "");
+          subdado.replace(" ", "");
 
+          // Valida os dados
           bool flag = false;
-          for (JsonPair keyValue : data.as<JsonObject>())  // Percorre cada chave do data
+          for (JsonPair keyValue : data.as<JsonObject>()) // Percorre cada chave do data
           {
-            String key = keyValue.key().c_str();           // Pega a chave como string
-            if (key.equals(_interface))                    // Compara com a entrada de interface
+            String key = keyValue.key().c_str(); // Pega a chave como string
+            if (key.equals(_interface))          // Compara com a entrada de interface
             {
-              for (JsonPair subKeyValue : keyValue.value().as<JsonObject>())  // Percorre os valores das chaves
+              for (JsonPair subKeyValue : keyValue.value().as<JsonObject>()) // Percorre os valores das chaves
               {
                 String subkey = subKeyValue.key().c_str();
-                if (subkey.equals(dado[index]))                               // Compara com a entrada do dado
+                if (subkey.equals(dado)) // Compara com a entrada do dado
                 {
                   flag = true;
                 }
@@ -663,17 +676,16 @@ void vInterfaceChange(void *pvParameters)
             }
           }
 
-          if (!flag)    // Caso percorrida as chaves e seus valores e não encontrado corresponde, significa que a entrada está incorreta
+          if (!flag) // Caso percorrida as chaves e seus valores e não encontrado corresponde, significa que a entrada está incorreta
           {
             Serial.println("Dados incorretos, tente novamente!");
             break;
           }
 
-          files.ChangeInterface(_interface, dado[index], subdado[index]);
+          files.ChangeInterface(_interface, dado, subdado);
 
-          if (debug)
+          if (debug && (inputString.length() > 0))
             Serial.println("Dado ainda a ser tratado: " + inputString);
-          index++;
         }
         else
         {

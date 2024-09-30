@@ -192,23 +192,28 @@ void MySPIFFS::ChangeInterface(String interface, String dado, String subdado, bo
 
     file.close();
 
+    if (interface.equals("timer"))
+        data[interface] = int_subdado;
+
     if (int_subdado > 0)
         data[interface][dado] = int_subdado;
     else
         data[interface][dado] = subdado;
-
-    if (status || !status)
+    if (dado.equals("Status"))
     {
-        if (data["WiFi"]["Status"])
-            data["WiFi"]["Status"] = false;
+        if (status || !status)
+        {
+            if (data["WiFi"]["Status"])
+                data["WiFi"]["Status"] = false;
 
-        if (data["LoRaMESH"]["Status"])
-            data["LoRaMESH"]["Status"] = false;
+            if (data["LoRaMESH"]["Status"])
+                data["LoRaMESH"]["Status"] = false;
 
-        if (data["PPP"]["Status"])
-            data["PPP"]["Status"] = false;
+            if (data["PPP"]["Status"])
+                data["PPP"]["Status"] = false;
 
-        data[interface]["Status"] = true;
+            data[interface]["Status"] = true;
+        }
     }
 
     file = SPIFFS.open("/interface.json", FILE_WRITE);
