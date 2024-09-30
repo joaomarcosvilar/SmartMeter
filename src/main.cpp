@@ -88,14 +88,15 @@ void setup()
     Serial.println("Digite o ID do device: ");
     while (1)
     {
-      if (Serial.available() > 1)
+      if (Serial.available() > 0)
       {
-        int ID = Serial.readString().toInt();
+        String strID = Serial.readStringUntil(' ');
+        int ID = strID.toInt();
         if ((ID > 0) || (ID < 2046))
         {
           // TODO: precisa verificar se existe outros dispositivos com mesmo ID
           files.ChangeInterface("LoRaMESH", "ID", ID);
-          break;
+          ESP.restart();
         }
         else
         {
@@ -281,7 +282,7 @@ void vSend(void *pvParameters)
   bool alt;
   String sensor;
   JsonDocument info;
-  char buffer[10];  // Buffer para armazenar a string formatada
+  char buffer[10]; // Buffer para armazenar a string formatada
 
   info["ID"] = data["LoRaMESH"]["ID"];
 
@@ -305,7 +306,7 @@ void vSend(void *pvParameters)
         coefficients[c] = files.getCoef(sensor, j, c);
       }
       float rmsValue = !alt ? SensorV.readRMS(j, coefficients) : SensorI.readRMS(j, coefficients);
-      
+
       // Quando valores negativos, identifica como dispositivo desconectado
       if (rmsValue < 0)
       {
@@ -314,7 +315,7 @@ void vSend(void *pvParameters)
 
       // Tratamento para não armazenar valores com mais de 2 casas decimais:
       dtostrf(rmsValue, 1, 2, buffer);
-      rmsValue = atof(buffer); 
+      rmsValue = atof(buffer);
       info[sensor][j] = rmsValue;
     }
   }
@@ -368,7 +369,9 @@ void vSerial(void *pvParameters)
       if (inputString.equals("InsertCoefficients"))
         xEventGroupSetBits(xEventGroup, INSERT_COEFICIENTS);
       if (inputString.equals("ChangeInterface"))
+      {
         xEventGroupSetBits(xEventGroup, CHANGE_INTERFACE);
+      }
 
       if (inputString.equals("InitializeInterface"))
       {
@@ -570,103 +573,113 @@ void vInsertCoefficients(void *pvParameters)
 }
 
 // TODO: mudar lógica de leitura e envio (MESH recebe as configs uint8_t) e verficar entrada para o tipo
-/*inserção de dados do interface:
-  WiFi -ssid PTHREAD -pwd fifo2rrobin
-  usar substring
-verificação de escrita para o tipo de leitura*/
+
 void vInterfaceChange(void *pvParameters)
 {
-
+  EventBits_t bits;
+  if (!debug)
+  {
+    while (1)
+    {
+      bits = xEventGroupWaitBits(xEventGroup, ENVIANDO, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
+      if ((bits & ENVIANDO))
+      {
+        // if (!debug)
+        xTimerStop(TimerHandle, 0); // Pausa o Timer enquanto a interface é alterada
+        vTaskDelete(SendHandle);
+        break;
+      }
+      vTaskDelay(pdMS_TO_TICKS(100));
+    }
+  }
   // TODO: Tem q esperar o termino de envio para poder seguir
 
-  String _interface = "", dado = "", subdado = "";
+  String _interface, dado[5], subdado[5], SUBinputString;
 
-  EventBits_t bits;
-  while (1)
-  {
-    bits = xEventGroupWaitBits(xEventGroup, ENVIANDO, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
-    if ((bits & ENVIANDO) || debug)
-    {
-      xTimerStop(TimerHandle, 0); // Pausa o Timer enquanto a interface é alterada
-      vTaskDelete(SendHandle);
-      break;
-    }
-    vTaskDelay(pdMS_TO_TICKS(100));
-  }
-  Serial.println("Qual interface?");
-
+  Serial.println("Comando AT: ");
   while (1)
   {
     if (Serial.available() > 0)
     {
-      _interface = Serial.readString();
-      // Serial.println("leu: " + _interface);
+      String inputString = Serial.readString();
+
+      // Mudança de modo desenvolvedor
       if (_interface.equals("debug"))
       {
         files.ChangeInterface();
         ESP.restart();
       }
 
-      if (!_interface.equals("WiFi") && !_interface.equals("LoRaMESH") && !_interface.equals("PPP"))
+      /*inserção de dados do interface:
+        WiFi -SSID JoaoMarcos -Password TestesMIC
+        usar substring
+      verificação de escrita para o tipo de leitura*/
+
+      int pos = inputString.indexOf('-');
+      _interface = inputString.substring(0, pos);
+      if (debug)
       {
-        Serial.println("Interface inválida. Tente novamente.");
-        break;
+        Serial.print("Interface: ");
+        Serial.println(_interface);
       }
 
-      Serial.println("Qual tipo de dado quer inserir?");
-
+      inputString = inputString.substring(pos + 1, inputString.length());
+      // Serial.println(inputString);
+      int index = 0;
       while (1)
       {
-        if (Serial.available() > 0)
+        if (((pos = inputString.indexOf('-')) > 0) || (inputString.length() > 0))
         {
-          dado = Serial.readString();
+          SUBinputString = inputString.substring(0, pos);
+          inputString = inputString.substring(SUBinputString.length() + 1, inputString.length());
 
-          if (data[_interface].containsKey(dado))
+          pos = SUBinputString.indexOf(' ');
+          dado[index] = SUBinputString.substring(0, pos);
+          subdado[index] = SUBinputString.substring(pos + 1, SUBinputString.length());
+          if (debug)
           {
+            Serial.print(index);
+            Serial.println("\tdado: " + dado[index] + "\tsubdado: " + subdado[index]);
+          }
+
+          _interface.replace(" ", "");
+          dado[index].replace(" ", "");
+          subdado[index].replace(" ", "");
+
+          bool flag = false;
+          for (JsonPair keyValue : data.as<JsonObject>())  // Percorre cada chave do data
+          {
+            String key = keyValue.key().c_str();           // Pega a chave como string
+            if (key.equals(_interface))                    // Compara com a entrada de interface
+            {
+              for (JsonPair subKeyValue : keyValue.value().as<JsonObject>())  // Percorre os valores das chaves
+              {
+                String subkey = subKeyValue.key().c_str();
+                if (subkey.equals(dado[index]))                               // Compara com a entrada do dado
+                {
+                  flag = true;
+                }
+              }
+            }
+          }
+
+          if (!flag)    // Caso percorrida as chaves e seus valores e não encontrado corresponde, significa que a entrada está incorreta
+          {
+            Serial.println("Dados incorretos, tente novamente!");
             break;
           }
-          else
-          {
-            Serial.println("Tipo de dado não identificado. Tente novamente:");
-          }
+
+          files.ChangeInterface(_interface, dado[index], subdado[index]);
+
+          if (debug)
+            Serial.println("Dado ainda a ser tratado: " + inputString);
+          index++;
         }
-        vTaskDelay(pdMS_TO_TICKS(100));
-      }
-
-      Serial.println("Insira o valor do dado:");
-
-      while (1)
-      {
-        if (Serial.available() > 0)
+        else
         {
-          subdado = Serial.readString();
-
-          if (subdado.equals("false"))
-          {
-            files.ChangeInterface(_interface, false);
-            vTaskDelete(NULL);
-          }
-          else if (subdado.equals("true"))
-          {
-            files.ChangeInterface(_interface, true);
-            vTaskDelete(NULL);
-          }
-          else
-          {
-            data[_interface][dado] = subdado;
-          }
-
-          if (data[_interface][dado] == subdado)
-          {
-            Serial.println("Valor alterado com sucesso.");
-            break;
-          }
+          break;
         }
-        vTaskDelay(pdMS_TO_TICKS(100));
       }
-
-      files.ChangeInterface(_interface, dado, subdado);
-      files.list("/interface.json");
       break;
     }
     vTaskDelay(pdMS_TO_TICKS(100));

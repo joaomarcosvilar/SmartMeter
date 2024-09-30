@@ -75,7 +75,50 @@ void LoRaEnd::sendMaster(String dados)
         {
             Serial.println("----------------Enviado por LoRaMESH----------------");
             Serial.println("\tTamanho: " + String(lora.frame.size));
-            // Serial.println("\tRSSI: " + String(RSSI(id))); < - Só mestre pode fazer leitura de RSSI
+
+            // TODO: não funcionou
+            // unsigned long starttime = millis();
+            // while (1)
+            // {
+            //     if ((millis() - starttime) > 2000)
+            //     {
+            //         break;
+            //     }
+            //     if (_serial->available() > 1)
+            //     {
+                    
+            //         String c = _serial->readString();
+            //         Serial.print("c: ");
+            //         for (int i = 0; i < c.length(); i++)
+            //             Serial.print(c[i]);
+            //         Serial.println();
+
+            //         String ida;
+            //         bool falg = false;
+            //         for (int i = 0; i < c.length(); i++)
+            //         {
+            //             if (c[i] == '{')
+            //                 falg = true;
+            //             if (falg)
+            //             {
+            //                 if (c[i] == ',')
+            //                 {
+            //                     ida[i] = '\0';
+            //                     break;
+            //                 }
+            //                 ida[i] = c[i];
+            //             }
+            //         }
+
+            //         Serial.print("ida: ");
+            //         for (int i = 0; i < ida.length(); i++)
+            //             Serial.print(ida[i]);
+            //         Serial.println();
+
+            //         break;
+            //     }
+            //     vTaskDelay(pdMS_TO_TICKS(100));
+            // }
         }
         else
         {
@@ -93,30 +136,6 @@ void LoRaEnd::RSSI(int id)
 {
     if (lora.localId != 0)
     {
-        // 0xD5
-        uint8_t b = 0;
-        uint8_t bufferPayload[MAX_PAYLOAD_SIZE] = {0};
-        bufferPayload[b] = 0x00;
-        bufferPayload[++b] = 0x00;
-        bufferPayload[++b] = 0x00;
-
-        lora.PrepareFrameCommand(id /*id do mestre*/, 0xD5, bufferPayload, b + 1);
-        lora.SendPacket();
-
-        /*
-            Envia: 01 00 D5 00 00 00 1A 1D
-                    ^-ID ^-Command    ^--^-CRC
-            Recebe: 01 00 D5 00 00 32 37 05 05 38 23 EC AC
-                    ^-ID ^-Command  ^ ^-volta   ^--^--^--^--^--^-CRC
-                                    |_ ida
-        */
-        if (lora.ReceivePacketCommand(&lora.localId, &lora.command, bufferPayload, &lora.payloadSize, 1000))
-        {
-            if (lora.command == 0xD5)
-            {
-                
-            }
-        }
     }
     Serial.println("Only the master can read the RSSI.");
 }

@@ -170,6 +170,5 @@ validade de envio dos pacotes, ou falha
 
 inicialização mostrar IP, SSID, o broker, informações do broker aws, tamanho de pacote, 
 
-
 corrigir calibração
  
