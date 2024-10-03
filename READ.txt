@@ -158,17 +158,17 @@ Esse valor garante que seu JSON será armazenado adequadamente no `DynamicJsonDo
 
 _______________________________________________________________________________________________________________
 TODO:
+está ocorrendo um problema na flag de aguardar o envio, se tiver iniciado, para poder entrar no change interface
+fazer o mesmo para quando tiver operando o initialize interface
 
+sempre que enviar os pacotes pelo Mesh mostrar valor RSSI do Mestre, distância entre o escravo e mestre, e SRN -> 
 
-MESH:
-sempre que enviar os pacotes pelo Mesh mostrar valor RSSI do Mestre, distância entre o escravo e mestre, e SRN
-
-buscar o timer na spiffs ou usar o default
-
-BROKER WIFI:
-validade de envio dos pacotes, ou falha
-
-inicialização mostrar IP, SSID, o broker, informações do broker aws, tamanho de pacote, 
+buscar o timer na spiffs ou usar o default -> falta apenas pegar o timer armazenado e utilizar
 
 corrigir calibração
  
+
+Verificar a execução dos envios, se sim, esperar para poder entrar no change interface
+Dá total demanda do esp para quando quando for inicializar a interface para essa task
+Testar o timer armazenado na spiffs
+Ajuste da calibração

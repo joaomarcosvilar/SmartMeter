@@ -33,12 +33,13 @@ WiFiClientSecure espClient = WiFiClientSecure();
 PubSubClient MQTTclient(espClient);
 
 TaskHandle_t CalibrationHandle = NULL;
-TaskHandle_t TranslateSerialHandle = NULL;
 TaskHandle_t InsertCoefficientsHandle = NULL;
+TaskHandle_t InitializeInterfaceHandle = NULL;
 TaskHandle_t SendHandle = NULL;
 TaskHandle_t TimerHandle = NULL;
 TaskHandle_t SerialHandle = NULL;
 TaskHandle_t SelectFunctionHandle = NULL;
+TaskHandle_t InterfaceChangeHandle = NULL;
 
 void vInitializeInterface(void *pvParameters);
 void vCalibration(void *pvParameters);
@@ -69,6 +70,7 @@ JsonDocument data;
 String interface;
 
 bool debug = true;
+bool SEND = false; // Flag para verificar se a task vSend está em funcionamento
 
 #define AWS_IOT_PUBLISH_TOPIC "smartmeter/power"
 
@@ -121,15 +123,25 @@ void setup()
   // xEnviando = xEventGroupCreate();
 
   // Cria Timer para envios
-  TimerHandle = xTimerCreate("TimerEnvios", pdMS_TO_TICKS(TIMER), pdTRUE, (void *)0, vTimer);
+  int setTimer = 0;
+  if (data["timer"] > 0)
+    setTimer = data["timer"];
+  else
+    setTimer = TIMER;
 
-  // Cria as tasks
-  xTaskCreate(vSelectFunction, "vSelectFunction", configMINIMAL_STACK_SIZE, NULL, 1, &SelectFunctionHandle);
-  xTaskCreate(vSerial, "Serial", 2048, NULL, 1, &SerialHandle);
+  TimerHandle = xTimerCreate("TimerEnvios", pdMS_TO_TICKS(setTimer), pdFALSE, (void *)0, vTimer);
 
   // Inicializa o timer
   if (!debug)
-    xTimerStart(TimerHandle, pdMS_TO_TICKS(100));
+  {
+    xTaskCreate(vInitializeInterface, "InitializeInterface", 4096, NULL, 1, &InitializeInterfaceHandle);
+  }
+  else
+  {
+    // Cria as tasks de captura de serial
+    xTaskCreate(vSelectFunction, "vSelectFunction", configMINIMAL_STACK_SIZE, NULL, 1, &SelectFunctionHandle);
+    xTaskCreate(vSerial, "Serial", 2048, NULL, 1, &SerialHandle);
+  }
 
   // Serial.println("Setup finalizado");
 }
@@ -141,11 +153,13 @@ void loop()
 // Task de Acionamento dos Envios
 void vTimer(TaskHandle_t TimerHandle)
 {
-  if (interface.equals("") & (!debug))
-    xTaskCreate(vInitializeInterface, "InitializeInterface", 4096, NULL, 1, &InsertCoefficientsHandle);
+  if (interface.equals(""))
+  {
+    xTaskCreate(vInitializeInterface, "InitializeInterface", 4096, NULL, 1, &InitializeInterfaceHandle);
+  }
   else
   {
-    // Serial.println("TIMER");
+
     xEventGroupSetBits(xEventGroup, ENVIO);
   }
 }
@@ -155,7 +169,7 @@ void vSelectFunction(void *pvParameters)
   EventBits_t bits;
   while (1)
   {
-    bits = xEventGroupWaitBits(xEventGroup, ENVIO | CALIBRATION | INSERT_COEFICIENTS | CHANGE_INTERFACE, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
+    bits = xEventGroupWaitBits(xEventGroup, ENVIO | CALIBRATION | INSERT_COEFICIENTS | CHANGE_INTERFACE | ENVIANDO, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
     if (bits & ENVIO)
     {
       xTaskCreate(vSend, "Send", 4096, NULL, 2, &SendHandle);
@@ -174,8 +188,12 @@ void vSelectFunction(void *pvParameters)
     }
     if (bits & CHANGE_INTERFACE)
     {
-      xTaskCreate(vInterfaceChange, "InterfaceChange", 5 * 1024, NULL, 3, NULL);
+      xTaskCreate(vInterfaceChange, "InterfaceChange", 6 * 1024, NULL, 3, &InterfaceChangeHandle);
       xEventGroupClearBits(xEventGroup, CHANGE_INTERFACE);
+    }
+    if (bits & ENVIANDO)
+    {
+      SEND = !SEND;
     }
 
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -192,15 +210,17 @@ void vInitializeInterface(void *pvParameters)
 {
   if (debug)
   {
+    Serial.println("Dados armazenados: \n");
     serializeJson(data, Serial);
+    Serial.println();
   }
 
   // Inicializa o LoRaMesh
   if (data["LoRaMESH"]["Status"])
   {
+    lora.begin(data);
     interface = "LoRaMESH";
     Serial.println("Interface inicializada: " + interface);
-    lora.begin(data);
   }
 
   // Inicializa o WiFi e conecta com o broker MQTT
@@ -208,9 +228,6 @@ void vInitializeInterface(void *pvParameters)
   {
     const char *ssid = data["WiFi"]["SSID"];
     const char *password = data["WiFi"]["Password"];
-
-    interface = "WiFi";
-    Serial.println("Interface inicializada: " + interface);
 
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
@@ -222,12 +239,18 @@ void vInitializeInterface(void *pvParameters)
       vTaskDelay(pdMS_TO_TICKS(500));
       if ((millis() - start) > TimeOut)
       {
+        Serial.println();
         Serial.println("WiFi error, initializing...");
-        ESP.restart();
+        xTaskCreate(vSelectFunction, "vSelectFunction", configMINIMAL_STACK_SIZE, NULL, 1, &SelectFunctionHandle);
+        xTaskCreate(vSerial, "Serial", 2048, NULL, 1, &SerialHandle);
+        vTaskDelete(NULL); // Autodelete
       }
     }
     Serial.println();
-    Serial.println("IP: " + WiFi.localIP());
+    interface = "WiFi";
+    Serial.println("Interface inicializada: " + interface);
+    Serial.print("IP: ");
+    Serial.println(WiFi.localIP());
     Serial.println("SSID: " + WiFi.SSID());
   }
 
@@ -264,27 +287,38 @@ void vInitializeInterface(void *pvParameters)
     {
       Serial.println(".");
       Serial.println(String(MQTTclient.state()));
+      vTaskDelay(pdMS_TO_TICKS(100));
     }
-    vTaskDelay(pdMS_TO_TICKS(100));
 
     // Subscribe to a topic
     MQTTclient.subscribe(AWS_IOT_SUBSCRIBE_TOPIC);
 
     Serial.println("AWS IoT Connected!");
   }
+
+  // Só libera as tasks se tiver inicializado a interface no modo não debug
+  if (!debug)
+  {
+    xTaskCreate(vSelectFunction, "vSelectFunction", configMINIMAL_STACK_SIZE, NULL, 1, &SelectFunctionHandle);
+    xTaskCreate(vSerial, "Serial", 2048, NULL, 1, &SerialHandle);
+  }
+
+  xTimerStart(TimerHandle, pdMS_TO_TICKS(100));
+
   vTaskDelete(NULL); // Autodelete
 }
 
 void vSend(void *pvParameters)
 {
-  xTimerStop(TimerHandle, 0);
-  // Serial.println(interface);
+  // Altera o estado de SEND para não ocorrer outras tasks
+  xEventGroupSetBits(xEventGroup, ENVIANDO);
+
   bool alt;
   String sensor;
   JsonDocument info;
   char buffer[10]; // Buffer para armazenar a string formatada
 
-  info["ID"] = data["LoRaMESH"]["ID"];
+  info["ID"] = data["LoRaMESH"]["ID"]; // Usa-se o ID do LoRaMESH como identificador do dispositivo de origem
 
   float coefficients[DEGREE];
   for (int i = 0; i < 2; i++)
@@ -322,11 +356,13 @@ void vSend(void *pvParameters)
   String str;
   serializeJson(info, str);
 
+  // Envia por LoraMESH
   if (interface.equals("LoRaMESH"))
   {
     lora.sendMaster(str);
   }
 
+  // Envia por WiFi
   if (interface.equals("WiFi"))
   {
     const char *strWiFi = str.c_str();
@@ -334,13 +370,19 @@ void vSend(void *pvParameters)
 
     if (!MQTTclient.connected())
     {
-      Serial.println("Não conectado ao MQTT, reiniciando conexão");
-      // todo: chamar initialize interface
+      Serial.println("Não conectado ao MQTT, reiniciando conexão.");
+      const char *THINGNAME = data["WiFi"]["THINGNAME"];
+      while (!MQTTclient.connect(THINGNAME))
+      {
+        Serial.println(".");
+        Serial.println(String(MQTTclient.state()));
+        vTaskDelay(pdMS_TO_TICKS(100));
+      }
     }
 
     if (MQTTclient.publish(AWS_IOT_PUBLISH_TOPIC, strWiFi))
     {
-      Serial.println("Enviado por WiFi. Tamanho: " + String(MQTTclient.getBufferSize()));
+      Serial.println("Enviado por WiFi. Tamanho: " + String(buffer));
     }
 
     MQTTclient.loop();
@@ -349,8 +391,9 @@ void vSend(void *pvParameters)
   if (interface.equals("PPP"))
   {
   }
+
   xEventGroupSetBits(xEventGroup, ENVIANDO);
-  xTimerStart(TimerHandle, 0);
+  xTimerStart(TimerHandle, 0); // Inicia novamente o timer
   vTaskDelete(NULL);
 }
 
@@ -361,7 +404,7 @@ void vSerial(void *pvParameters)
 
   while (1)
   {
-    if (Serial.available() > 1)
+    if ((Serial.available() > 1))
     {
       inputString = Serial.readString();
       if (inputString.equals("Calibration"))
@@ -372,11 +415,9 @@ void vSerial(void *pvParameters)
       {
         xEventGroupSetBits(xEventGroup, CHANGE_INTERFACE);
       }
-
       if (inputString.equals("InitializeInterface"))
       {
-        xTaskCreate(vInitializeInterface, "InitializeInterface", 4096, NULL, 1, &InsertCoefficientsHandle);
-        xTimerStart(TimerHandle, pdMS_TO_TICKS(100));
+        xTaskCreate(vInitializeInterface, "InitializeInterface", 4096, NULL, 1, &InitializeInterfaceHandle);
       }
       if (inputString.equals("Format"))
       {
@@ -572,62 +613,63 @@ void vInsertCoefficients(void *pvParameters)
   ESP.restart();
 }
 
-// TODO: mudar lógica de leitura e envio (MESH recebe as configs uint8_t) e verficar entrada para o tipo
-
 void vInterfaceChange(void *pvParameters)
 {
-  EventBits_t bits;
-  if (!debug)
+  Serial.print("Aguarde");
+  if ((!debug))
   {
     while (1)
     {
-      bits = xEventGroupWaitBits(xEventGroup, ENVIANDO, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
-      if ((bits & ENVIANDO))
+      if (SendHandle == NULL)
       {
-        // if (!debug)
         xTimerStop(TimerHandle, 0); // Pausa o Timer enquanto a interface é alterada
-        vTaskDelete(SendHandle);
         break;
       }
+      Serial.print(".");
       vTaskDelay(pdMS_TO_TICKS(100));
     }
   }
-  // TODO: Tem q esperar o termino de envio para poder seguir
+  Serial.println();
+
 
   String _interface, dado, subdado, SUBinputString;
+  unsigned long startTimer = millis();
 
-  Serial.println("Comando AT: ");
+  Serial.print("Insira o comando: ");
   while (1)
   {
+
     if (Serial.available() > 0)
     {
-      String inputString = Serial.readString();
+      String inputString = "";
+      inputString = Serial.readString();
+
+      Serial.println(inputString);
 
       // Mudança de modo desenvolvedor
-      if (_interface.equals("debug"))
+      if (inputString.equals("debug"))
       {
+        Serial.println("debug");
         files.ChangeInterface();
         ESP.restart();
       }
 
       /*inserção de dados do interface de Exemplo:
-        WiFi -SSID JoaoMarcos -Password TestesMIC
+        WiFi -SSID:JoaoMarcos -Password:TestesMIC
         usar substring
       verificação de escrita para o tipo de leitura*/
 
       int pos = inputString.indexOf('-');
       _interface = inputString.substring(0, pos);
       if (debug)
-      {
-        Serial.print("Interface: ");
-        Serial.println(_interface);
-      }
+        Serial.println("Interface: " + _interface);
 
       if (_interface.equals("timer "))
       {
+        Serial.println("timer");
         _interface.replace(" ", "");
         dado = inputString.substring(pos + 1, inputString.length());
-        dado.replace("\n","");
+        dado.replace("\n", "");
         // Serial.println("dado: " + dado);
         int setTimer = dado.toInt();
         // Serial.println("Temporizador: " + setTimer);
@@ -635,7 +677,8 @@ void vInterfaceChange(void *pvParameters)
         break;
       }
 
-      inputString = inputString.substring(pos + 1, inputString.length());
+      inputString = inputString.substring(pos, inputString.length());
+      Serial.println("inputString cortado: " + inputString);
 
       while (1)
       {
@@ -645,7 +688,7 @@ void vInterfaceChange(void *pvParameters)
           SUBinputString = inputString.substring(0, pos);
           inputString = inputString.substring(SUBinputString.length() + 1, inputString.length());
 
-          pos = SUBinputString.indexOf(' ');
+          pos = SUBinputString.indexOf(':');
           dado = SUBinputString.substring(0, pos);
           subdado = SUBinputString.substring(pos + 1, SUBinputString.length());
           if (debug)
@@ -679,7 +722,7 @@ void vInterfaceChange(void *pvParameters)
           if (!flag) // Caso percorrida as chaves e seus valores e não encontrado corresponde, significa que a entrada está incorreta
           {
             Serial.println("Dados incorretos, tente novamente!");
-            break;
+            vTaskDelete(NULL);
           }
 
           files.ChangeInterface(_interface, dado, subdado);
@@ -692,6 +735,13 @@ void vInterfaceChange(void *pvParameters)
           break;
         }
       }
+      ESP.restart();
+      break;
+    }
+    if ((millis() - startTimer) > 2 * TimeOut)
+    {
+      Serial.println("Tempo de espera encerrado.");
+      // xTimerStart(TimerHandle, pdMS_TO_TICKS(100));
       break;
     }
     vTaskDelay(pdMS_TO_TICKS(100));
