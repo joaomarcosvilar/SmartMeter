@@ -17,8 +17,6 @@ public:
     void IRAM_ATTR onNewDataReady(); // Função de Interrupção do pino ALRT
     // float readADC(int channel);
     // float readRealIns(int channel, float a, float b);
-    bool avaliable[4] = {true, true, true};
-
 
 private:
     int READY_PIN;                           // Pino ALRT do ADS1115
@@ -35,7 +33,9 @@ private:
     void setChannel(int channel);
     int lastChannel = -1;
 
-    float toleranceVoltage = 0; // Teste para identificar se o sensor está conectado e funcionando corretamente
+    bool connectVerify(int channel);
+    bool avaliable[4] = {true, true, true};
+    float toleranceVoltage = 0.05; // Teste para identificar se o sensor está conectado e funcionando corretamente
 };
 
 #endif
@@ -65,6 +65,15 @@ void ADSreads::begin()
     ads.setDataRate(dataRate);
 
     pinMode(READY_PIN, INPUT_PULLUP);
+
+    Serial.println("Verificando conexao...");
+    for (int i = 0; i < 3; i++)
+    {
+        avaliable[i] = connectVerify(i);
+        if(!avaliable[i])
+            Serial.println("Sensor nao conectado ao canal " + String(i));
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
 }
 
 // Função auxiliar para os alertas de leituras do canal.
@@ -216,3 +225,32 @@ float ADSreads::readRMS(int channel, float coefficients[])
 //         return 0;
 //     }
 // }
+
+// Cálculo e conversão do sinal RMS do canal.
+bool ADSreads::connectVerify(int channel)
+{
+    // Verifica se todos os coeficientes estão no valor padrão 0, sendo necessário a calibração.
+    float min = 5.0;
+    float max = 0.0;
+
+    for (int i = 0; i < samples; i++)
+    {
+        int current = readInst(channel);
+
+        if (current > max)
+        {
+            max = current;
+            continue;
+        }
+        if (current < min)
+        {
+            min = current;
+            continue;
+        }
+    }
+
+    if ((max - min) < toleranceVoltage)
+        return false;
+    else
+        return true;
+}

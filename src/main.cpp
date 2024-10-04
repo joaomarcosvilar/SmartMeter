@@ -657,8 +657,10 @@ void vInterfaceChange(void *pvParameters)
         Serial.println("inputString: " + inputString);
 
       /*inserção de dados do interface de Exemplo:
-        WiFi -SSID:JoaoMarcos -Password:TestesMIC
-        usar substring
+        WiFi -SSID:JoaoMarcos -Password:TestesMIC;
+        "-" indica o inicio da subkey
+        ":" indica inicio do valor da subkey
+        ";" indica final do comando
       verificação de escrita para o tipo de leitura*/
 
       int pos = inputString.indexOf('-');
@@ -667,7 +669,7 @@ void vInterfaceChange(void *pvParameters)
       if (debug)
         Serial.println("Interface: " + _interface);
 
-      // Mudança de modo desenvolvedor
+      // Mudança de modo desenvolvedor debug -;
       if (_interface.equals("debug"))
       {
         files.ChangeInterface();

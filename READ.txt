@@ -82,6 +82,11 @@ Informações para a construção da board:
 _______________________________________________________________________________________________________________
 TODO:
 sempre que enviar os pacotes pelo Mesh mostrar valor RSSI do Mestre, distância entre o escravo e mestre, e SRN -> 
-
+ajustar offset dos outros sensores de tensão
 corrigir calibração
 tamanho do pacote enviado para o MQTT está incorreto
+esquemático de calibrador e documentação de como usar
+FASE FINAL -> documentação completa
+
+OBS.: o ADS de tensão está meio bugado, quando entrada está flutuando, fica dando leitura estranha, mas quando conectado
+a fonte de sinal, não ocorre erro de leitura
