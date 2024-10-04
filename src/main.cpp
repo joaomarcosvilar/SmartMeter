@@ -169,7 +169,7 @@ void vSelectFunction(void *pvParameters)
   EventBits_t bits;
   while (1)
   {
-    bits = xEventGroupWaitBits(xEventGroup, ENVIO | CALIBRATION | INSERT_COEFICIENTS | CHANGE_INTERFACE | ENVIANDO, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
+    bits = xEventGroupWaitBits(xEventGroup, ENVIO | CALIBRATION | INSERT_COEFICIENTS | CHANGE_INTERFACE, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
     if (bits & ENVIO)
     {
       xTaskCreate(vSend, "Send", 4096, NULL, 2, &SendHandle);
@@ -188,14 +188,9 @@ void vSelectFunction(void *pvParameters)
     }
     if (bits & CHANGE_INTERFACE)
     {
-      xTaskCreate(vInterfaceChange, "InterfaceChange", 6 * 1024, NULL, 3, &InterfaceChangeHandle);
+      xTaskCreate(vInterfaceChange, "InterfaceChange", 6 * 1024, NULL, 1, &InterfaceChangeHandle);
       xEventGroupClearBits(xEventGroup, CHANGE_INTERFACE);
     }
-    if (bits & ENVIANDO)
-    {
-      SEND = !SEND;
-    }
-
     vTaskDelay(pdMS_TO_TICKS(100));
   }
 }
@@ -394,7 +389,7 @@ void vSend(void *pvParameters)
 
   xEventGroupSetBits(xEventGroup, ENVIANDO);
   xTimerStart(TimerHandle, 0); // Inicia novamente o timer
-  vTaskDelete(NULL);
+  vTaskDelete(SendHandle);
 }
 
 void vSerial(void *pvParameters)
@@ -616,43 +611,49 @@ void vInsertCoefficients(void *pvParameters)
 void vInterfaceChange(void *pvParameters)
 {
   Serial.print("Aguarde");
+  EventBits_t bits;
   if ((!debug))
   {
     while (1)
     {
-      if (SendHandle == NULL)
+      bits = xEventGroupWaitBits(xEventGroup, ENVIANDO, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
+      if (SendHandle == NULL || (bits & ENVIANDO))
       {
         xTimerStop(TimerHandle, 0); // Pausa o Timer enquanto a interface é alterada
+        vTaskDelete(SerialHandle);
+        vTaskDelete(SelectFunctionHandle);
         break;
       }
       Serial.print(".");
-      vTaskDelay(pdMS_TO_TICKS(100));
+      vTaskDelay(pdMS_TO_TICKS(200));
     }
   }
   Serial.println();
 
-
+  String inputString = "";
   String _interface, dado, subdado, SUBinputString;
   unsigned long startTimer = millis();
 
   Serial.print("Insira o comando: ");
   while (1)
   {
-
-    if (Serial.available() > 0)
+    while (Serial.available() > 0)
     {
-      String inputString = "";
-      inputString = Serial.readString();
-
-      Serial.println(inputString);
-
-      // Mudança de modo desenvolvedor
-      if (inputString.equals("debug"))
-      {
-        Serial.println("debug");
-        files.ChangeInterface();
-        ESP.restart();
+      char incomingChar = Serial.read();
+      // if (debug)
+      //   Serial.print("incomingChar: " + incomingChar);
+      inputString += incomingChar;
+      if (incomingChar == ';')
+      { // Considera que a entrada termina com '\n'
+        Serial.println();
+        break;
       }
+    }
+
+    if (inputString.length() > 0 && inputString.endsWith(";"))
+    {
+      if (debug)
+        Serial.println("inputString: " + inputString);
 
       /*inserção de dados do interface de Exemplo:
         WiFi -SSID:JoaoMarcos -Password:TestesMIC
@@ -661,29 +662,36 @@ void vInterfaceChange(void *pvParameters)
 
       int pos = inputString.indexOf('-');
       _interface = inputString.substring(0, pos);
+      _interface.replace(" ", "");
       if (debug)
         Serial.println("Interface: " + _interface);
 
-      if (_interface.equals("timer "))
+      // Mudança de modo desenvolvedor
+      if (_interface.equals("debug"))
       {
-        Serial.println("timer");
+        files.ChangeInterface();
+        ESP.restart();
+      }
+
+      // timer -5000;
+      if (_interface.equals("timer"))
+      {
         _interface.replace(" ", "");
         dado = inputString.substring(pos + 1, inputString.length());
-        dado.replace("\n", "");
         // Serial.println("dado: " + dado);
         int setTimer = dado.toInt();
         // Serial.println("Temporizador: " + setTimer);
         files.ChangeInterface(_interface, "", setTimer);
-        break;
+        ESP.restart();
       }
 
-      inputString = inputString.substring(pos, inputString.length());
+      inputString = inputString.substring(pos + 1, inputString.length());
       Serial.println("inputString cortado: " + inputString);
 
       while (1)
       {
-
-        if (((pos = inputString.indexOf('-')) > 0) || (inputString.length() > 0))
+        pos = inputString.indexOf('-');
+        if ((pos > 0) || (inputString.length() > 0))
         {
           SUBinputString = inputString.substring(0, pos);
           inputString = inputString.substring(SUBinputString.length() + 1, inputString.length());
@@ -691,18 +699,20 @@ void vInterfaceChange(void *pvParameters)
           pos = SUBinputString.indexOf(':');
           dado = SUBinputString.substring(0, pos);
           subdado = SUBinputString.substring(pos + 1, SUBinputString.length());
+
+          // Faz limpeza dos " " que as Strings pode possuir
+          dado.replace(" ", "");
+          subdado.replace(" ", "");
+          subdado.replace(";", "");
+
           if (debug)
           {
             Serial.println("\tdado: " + dado + "\tsubdado: " + subdado);
           }
 
-          // Faz limpeza dos " " que as Strings pode possuir
-          _interface.replace(" ", "");
-          dado.replace(" ", "");
-          subdado.replace(" ", "");
-
           // Valida os dados
           bool flag = false;
+          JsonVariant VariantDado;
           for (JsonPair keyValue : data.as<JsonObject>()) // Percorre cada chave do data
           {
             String key = keyValue.key().c_str(); // Pega a chave como string
@@ -713,19 +723,32 @@ void vInterfaceChange(void *pvParameters)
                 String subkey = subKeyValue.key().c_str();
                 if (subkey.equals(dado)) // Compara com a entrada do dado
                 {
+                  VariantDado = subKeyValue.value();
                   flag = true;
+                  break;
                 }
               }
+              break;
             }
           }
 
           if (!flag) // Caso percorrida as chaves e seus valores e não encontrado corresponde, significa que a entrada está incorreta
           {
             Serial.println("Dados incorretos, tente novamente!");
-            vTaskDelete(NULL);
+            ESP.restart();
           }
 
-          files.ChangeInterface(_interface, dado, subdado);
+          if (VariantDado.is<int>())
+          {
+            Serial.println("É inteiro");
+            int subdadoInt = subdado.toInt();
+            files.ChangeInterface(_interface, dado, subdadoInt);
+          }
+          else
+          {
+            Serial.println("É string");
+            files.ChangeInterface(_interface, dado, subdado);
+          }
 
           if (debug && (inputString.length() > 0))
             Serial.println("Dado ainda a ser tratado: " + inputString);
@@ -744,7 +767,7 @@ void vInterfaceChange(void *pvParameters)
       // xTimerStart(TimerHandle, pdMS_TO_TICKS(100));
       break;
     }
-    vTaskDelay(pdMS_TO_TICKS(100));
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
   vTaskDelete(NULL);
 }

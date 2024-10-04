@@ -20,6 +20,7 @@ private:
     uint8_t command;
     int id;
     JsonDocument data;
+    uint8_t parseString(String subdado);
 };
 
 #endif
@@ -46,8 +47,8 @@ void LoRaEnd::begin(JsonDocument _data)
 
         // TODO: traduzir os dados do ChangeInterface para uint8_t
         // Config abaixa usada por padrão
-        lora.config_bps(data["LoRaMESH"]["BD"], data["LoRaMESH"]["SF"], data["LoRaMESH"]["CRate"]);
-        lora.config_class(data["LoRaMESH"]["Class"], data["LoRaMESH"]["Window"]);
+        lora.config_bps(parseString(data["LoRaMESH"]["BD"]), parseString(data["LoRaMESH"]["SF"]), parseString(data["LoRaMESH"]["CRate"]));
+        lora.config_class(parseString(data["LoRaMESH"]["Class"]), parseString(data["LoRaMESH"]["Window"]));
     }
 
     Serial.println("LocalID: " + String(lora.localId));
@@ -73,7 +74,7 @@ void LoRaEnd::sendMaster(String dados)
     {
         if (lora.SendPacket())
         {
-            Serial.println("----------------Enviado por LoRaMESH----------------");
+            Serial.print("Enviado por LoRaMESH:");
             Serial.println("\tTamanho: " + String(lora.frame.size));
 
             // TODO: não funcionou
@@ -86,7 +87,7 @@ void LoRaEnd::sendMaster(String dados)
             //     }
             //     if (_serial->available() > 1)
             //     {
-                    
+
             //         String c = _serial->readString();
             //         Serial.print("c: ");
             //         for (int i = 0; i < c.length(); i++)
@@ -138,4 +139,51 @@ void LoRaEnd::RSSI(int id)
     {
     }
     Serial.println("Only the master can read the RSSI.");
+}
+
+uint8_t LoRaEnd::parseString(String subdado)
+{
+    subdado.trim();
+    subdado.toUpperCase();
+
+    if (subdado.equals("BW125"))
+        return BW125;
+    if (subdado.equals("BW250"))
+        return BW250;
+    if (subdado.equals("BW500"))
+        return BW500;
+    if (subdado.equals("SF_LoRa_7"))
+        return SF_LoRa_7;
+    if (subdado.equals("SF_LoRa_8"))
+        return SF_LoRa_8;
+    if (subdado.equals("SF_LoRa_9"))
+        return SF_LoRa_9;
+    if (subdado.equals("SF_LoRa_10"))
+        return SF_LoRa_10;
+    if (subdado.equals("SF_LoRa_11"))
+        return SF_LoRa_11;
+    if (subdado.equals("SF_LoRa_12"))
+        return SF_LoRa_12;
+    if (subdado.equals("SF_FSK"))
+        return SF_FSK;
+    if (subdado.equals("CR4_5"))
+        return CR4_5;
+    if (subdado.equals("CR4_6"))
+        return CR4_6;
+    if (subdado.equals("CR4_7"))
+        return CR4_7;
+    if (subdado.equals("CR4_8"))
+        return CR4_8;
+    if (subdado.equals("LoRa_CLASS_A"))
+        return LoRa_CLASS_A;
+    if (subdado.equals("LoRa_CLASS_C"))
+        return LoRa_CLASS_C;
+    if (subdado.equals("LoRa_WINDOW_5s"))
+        return LoRa_WINDOW_5s;
+    if (subdado.equals("LoRa_WINDOW_10s"))
+        return LoRa_WINDOW_10s;
+    if (subdado.equals("LoRa_WINDOW_15s"))
+        return LoRa_WINDOW_15s;
+    else
+        return 0;
 }

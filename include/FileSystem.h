@@ -131,11 +131,11 @@ void MySPIFFS::initInterface()
     data["LoRaMESH"]["ID"] = -1;                  /* ID: 0 é mestre, e 1-2046 é escravo  OBS.: Não existe função para
                                                       identificar se existe outros ID idênticos. Cada ID é utilizado
                                                       identificar qual o dispositivo SmartMeter.*/
-    data["LoRaMESH"]["BD"] = BW500;               // Bandwith: 125KHz, 250KHz e 500KHz
-    data["LoRaMESH"]["SF"] = SF_LoRa_7;           // SpreadingFactor: 7 - 12
-    data["LoRaMESH"]["CRate"] = CR4_5;            // Coding Rate: 4/5,4/6,4/7,4/8
-    data["LoRaMESH"]["Class"] = LoRa_CLASS_C;     // Classe: A e C
-    data["LoRaMESH"]["Window"] = LoRa_WINDOW_15s; // Janela: 5, 10 e 15s
+    data["LoRaMESH"]["BD"] = "BW500";               // Bandwith: 125KHz, 250KHz e 500KHz
+    data["LoRaMESH"]["SF"] = "SF_LoRa_7";           // SpreadingFactor: 7 - 12
+    data["LoRaMESH"]["CRate"] = "CR4_5";            // Coding Rate: 4/5,4/6,4/7,4/8
+    data["LoRaMESH"]["Class"] = "LoRa_CLASS_C";     // Classe: A e C
+    data["LoRaMESH"]["Window"] = "LoRa_WINDOW_15s"; // Janela: 5, 10 e 15s
     data["LoRaMESH"]["Password"] = 123;           // Senha: <= 65535
     data["LoRaMESH"]["Baudrate"] = 9600;
 
