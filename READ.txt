@@ -84,6 +84,4 @@ TODO:
 sempre que enviar os pacotes pelo Mesh mostrar valor RSSI do Mestre, distância entre o escravo e mestre, e SRN -> 
 
 corrigir calibração
- 
-
-Ajuste da calibração
+tamanho do pacote enviado para o MQTT está incorreto

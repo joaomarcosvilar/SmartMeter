@@ -116,6 +116,7 @@ void setup()
   // Inicializa os ADS
   SensorV.begin();
   SensorI.begin();
+
   Wire.setBufferSize(256);
 
   // Cria o EventGroup
@@ -337,10 +338,10 @@ void vSend(void *pvParameters)
       float rmsValue = !alt ? SensorV.readRMS(j, coefficients) : SensorI.readRMS(j, coefficients);
 
       // Quando valores negativos, identifica como dispositivo desconectado
-      if (rmsValue < 0)
-      {
-        rmsValue = 0;
-      }
+      // if (rmsValue < 0)
+      // {
+      //   rmsValue = 0;
+      // }
 
       // Tratamento para não armazenar valores com mais de 2 casas decimais:
       dtostrf(rmsValue, 1, 2, buffer);
@@ -740,13 +741,13 @@ void vInterfaceChange(void *pvParameters)
 
           if (VariantDado.is<int>())
           {
-            Serial.println("É inteiro");
+            // Serial.println("É inteiro");
             int subdadoInt = subdado.toInt();
             files.ChangeInterface(_interface, dado, subdadoInt);
           }
           else
           {
-            Serial.println("É string");
+            // Serial.println("É string");
             files.ChangeInterface(_interface, dado, subdado);
           }
 

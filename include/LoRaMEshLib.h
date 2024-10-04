@@ -47,8 +47,22 @@ void LoRaEnd::begin(JsonDocument _data)
 
         // TODO: traduzir os dados do ChangeInterface para uint8_t
         // Config abaixa usada por padrão
-        lora.config_bps(parseString(data["LoRaMESH"]["BD"]), parseString(data["LoRaMESH"]["SF"]), parseString(data["LoRaMESH"]["CRate"]));
-        lora.config_class(parseString(data["LoRaMESH"]["Class"]), parseString(data["LoRaMESH"]["Window"]));
+        uint8_t DB = parseString(data["LoRaMESH"]["BD"]);
+        uint8_t SF = parseString(data["LoRaMESH"]["SF"]);
+        uint8_t CRate = parseString(data["LoRaMESH"]["CRate"]);
+        uint8_t Class = parseString(data["LoRaMESH"]["Class"]);
+        uint8_t Window = parseString(data["LoRaMESH"]["Window"]);
+
+        if (data["debug"])
+        {
+            Serial.println("DB: " + String(DB));
+            Serial.println("SF: " + String(SF));
+            Serial.println("CRate: " + String(CRate));
+            Serial.println("Class: " + String(Class));
+            Serial.println("Window: " + String(Window));
+        }
+        lora.config_bps(DB, SF, CRate);
+        lora.config_class(Class, Window);
     }
 
     Serial.println("LocalID: " + String(lora.localId));

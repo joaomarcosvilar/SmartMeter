@@ -17,6 +17,8 @@ public:
     void IRAM_ATTR onNewDataReady(); // Função de Interrupção do pino ALRT
     // float readADC(int channel);
     // float readRealIns(int channel, float a, float b);
+    bool avaliable[4] = {true, true, true};
+
 
 private:
     int READY_PIN;                           // Pino ALRT do ADS1115
@@ -25,7 +27,7 @@ private:
 
     volatile bool newData = false;
 
-    static ADSreads *instance;               // Ponteiro estático para a instância
+    static ADSreads *instance; // Ponteiro estático para a instância
     uint8_t adress;
 
     uint16_t muxConfig;
@@ -33,7 +35,6 @@ private:
     void setChannel(int channel);
     int lastChannel = -1;
 
-    bool avaliable[4] = {true, true, true, true};
     float toleranceVoltage = 0; // Teste para identificar se o sensor está conectado e funcionando corretamente
 };
 
@@ -57,8 +58,8 @@ void ADSreads::begin()
     }
     else
     {
-        // Serial.print("ADS initialized: ");
-        // Serial.println(adress);
+        Serial.print("ADS initialized: ");
+        Serial.println(adress);
     }
 
     ads.setDataRate(dataRate);
@@ -130,6 +131,7 @@ float ADSreads::readFreq(int channel)
     }
 
     float frequency = (zeroCrossings / 2.0) / ((millis() - startMillis) / 1000.0);
+
     return frequency;
 }
 
@@ -167,7 +169,6 @@ float ADSreads::readRMS(int channel, float coefficients[])
     if (index == DEGREE)
         return 0;
 
-
     float sum = 0;
     for (int i = 0; i < samples; i++)
     {
@@ -176,17 +177,18 @@ float ADSreads::readRMS(int channel, float coefficients[])
     }
     float sensorRMS = sqrt(sum / samples);
     // Serial.println(sensorRMS,6);
-   
-    float trueRMS = 0;   
+
+    float trueRMS = 0;
 
     if (coefficients[2] == 0.0) // Para a regressão linear da corrente (Apresentou erro menor +-0.1A)(Corrente)
     {
-        trueRMS = coefficients[1] + coefficients[0] * sensorRMS ;
+        trueRMS = coefficients[1] + coefficients[0] * sensorRMS;
     }
-    else    // Usando polinomio de grau 2 (Tensão)
+    else // Usando polinomio de grau 2 (Tensão)
     {
         trueRMS = coefficients[2] + coefficients[1] * sensorRMS + coefficients[0] * sensorRMS * sensorRMS;
     }
+
     return trueRMS;
 }
 
@@ -214,4 +216,3 @@ float ADSreads::readRMS(int channel, float coefficients[])
 //         return 0;
 //     }
 // }
-
