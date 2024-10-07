@@ -48,16 +48,13 @@ JsonDocument MySPIFFS::begin()
 
     if (!SPIFFS.exists("/interface.json"))
         initInterface();
-    // else
-    // {
-    // list("/calibration.txt");
-    // }
 
     // Identificar qual a interface está ativa
     File file = SPIFFS.open("/interface.json", FILE_READ);
     JsonDocument data;
     deserializeJson(data, file);
-    // serializeJson(data, Serial);
+    // if (data["debug"])
+    //     serializeJson(data, Serial);
     file.close();
     return data;
 }
@@ -117,32 +114,32 @@ void MySPIFFS::initInterface()
     data["debug"] = true;
 
     // Tempo de envio
-    data["timer"] = 5000;
+    data["t"] = 5000;
 
-    // Dados referente à comunicação WiFi
-    data["WiFi"]["Status"] = false;
-    data["WiFi"]["SSID"] = "FREUD_EXPLICA_2.4G";
-    data["WiFi"]["Password"] = "02040608";
-    data["WiFi"]["THINGNAME"] = "SmartMeter";
-    data["WiFi"]["AWS_IOT_ENDPOINT"] = "a1o3x5gedhdznd-ats.iot.us-east-2.amazonaws.com";
+    // Dados referente à comunicação wifi
+    data["wifi"]["status"] = false;
+    data["wifi"]["ssid"] = "SSID";
+    data["wifi"]["pwd"] = "PWD";
+    data["wifi"]["name"] = "SmartMeter";
+    data["wifi"]["serv"] = "a1o3x5gedhdznd-ats.iot.us-east-2.amazonaws.com";
 
-    // LoRaMESH: é a comunicação DEFAULT_Coef, precisa configurar o LoRaMesh na inicialização
-    data["LoRaMESH"]["Status"] = true;
-    data["LoRaMESH"]["ID"] = -1;                  /* ID: 0 é mestre, e 1-2046 é escravo  OBS.: Não existe função para
-                                                      identificar se existe outros ID idênticos. Cada ID é utilizado
-                                                      identificar qual o dispositivo SmartMeter.*/
-    data["LoRaMESH"]["BD"] = "BW500";               // Bandwith: 125KHz, 250KHz e 500KHz
-    data["LoRaMESH"]["SF"] = "SF_LoRa_7";           // SpreadingFactor: 7 - 12
-    data["LoRaMESH"]["CRate"] = "CR4_5";            // Coding Rate: 4/5,4/6,4/7,4/8
-    data["LoRaMESH"]["Class"] = "LoRa_CLASS_C";     // Classe: A e C
-    data["LoRaMESH"]["Window"] = "LoRa_WINDOW_15s"; // Janela: 5, 10 e 15s
-    data["LoRaMESH"]["Password"] = 123;           // Senha: <= 65535
-    data["LoRaMESH"]["Baudrate"] = 9600;
+    // loramesh: é a comunicação DEFAULT_Coef, precisa configurar o loramesh na inicialização
+    data["loramesh"]["status"] = true;
+    data["loramesh"]["id"] = -1;                    /* ID: 0 é mestre, e 1-2046 é escravo  OBS.: Não existe função para
+                                                        identificar se existe outros ID idênticos. Cada ID é utilizado
+                                                        identificar qual o dispositivo SmartMeter.*/
+    data["loramesh"]["bw"] = "BW500";               // Bandwith: 125KHz, 250KHz e 500KHz
+    data["loramesh"]["sf"] = "SF_LoRa_7";           // SpreadingFactor: 7 - 12
+    data["loramesh"]["crate"] = "CR4_5";            // Coding Rate: 4/5,4/6,4/7,4/8
+    data["loramesh"]["class"] = "LoRa_CLASS_C";     // Classe: A e C
+    data["loramesh"]["window"] = "LoRa_WINDOW_15s"; // Janela: 5, 10 e 15s
+    data["loramesh"]["pwd"] = 123;                  // Senha: <= 65535
+    data["loramesh"]["bd"] = 9600;
 
-    // PPPOSClient
-    data["PPP"]["Status"] = false;
-    data["PPP"]["Modem"] = "M95";
-    data["PPP"]["Op"] = "";
+    // pppOSClient
+    data["ppp"]["status"] = false;
+    data["ppp"]["modem"] = "M95";
+    data["ppp"]["op"] = "";
 
     // Salva na file interface.json
     File file = SPIFFS.open("/interface.json", FILE_WRITE);
@@ -199,20 +196,20 @@ void MySPIFFS::ChangeInterface(String interface, String dado, String subdado, bo
         data[interface][dado] = int_subdado;
     else
         data[interface][dado] = subdado;
-    if (dado.equals("Status"))
+    if (dado.equals("status"))
     {
         if (status || !status)
         {
-            if (data["WiFi"]["Status"])
-                data["WiFi"]["Status"] = false;
+            if (data["wifi"]["status"])
+                data["wifi"]["status"] = false;
 
-            if (data["LoRaMESH"]["Status"])
-                data["LoRaMESH"]["Status"] = false;
+            if (data["loramesh"]["status"])
+                data["loramesh"]["status"] = false;
 
-            if (data["PPP"]["Status"])
-                data["PPP"]["Status"] = false;
+            if (data["ppp"]["status"])
+                data["ppp"]["status"] = false;
 
-            data[interface]["Status"] = true;
+            data[interface]["status"] = true;
         }
     }
 

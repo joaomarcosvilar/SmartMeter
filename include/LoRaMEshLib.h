@@ -33,25 +33,25 @@ LoRaEnd::LoRaEnd(int TXpin, int RXpin)
 void LoRaEnd::begin(JsonDocument _data)
 {
     data.set(_data);
-    _serial->begin(data["LoRaMESH"]["Baudrate"], SERIAL_8N1, _RXpin, _TXpin);
+    _serial->begin(data["loramesh"]["bd"], SERIAL_8N1, _RXpin, _TXpin);
 
     if (data["debug"])
         lora.begin(true);
     else
         lora.begin();
 
-    if (lora.localId != data["LoRaMESH"]["ID"])
+    if (lora.localId != data["loramesh"]["id"])
     {
-        lora.setnetworkId(data["LoRaMESH"]["ID"]);
-        lora.setpassword(data["LoRaMESH"]["Password"]);
+        lora.setnetworkId(data["loramesh"]["id"]);
+        lora.setpassword(data["loramesh"]["pwd"]);
 
         // TODO: traduzir os dados do ChangeInterface para uint8_t
         // Config abaixa usada por padrão
-        uint8_t DB = parseString(data["LoRaMESH"]["BD"]);
-        uint8_t SF = parseString(data["LoRaMESH"]["SF"]);
-        uint8_t CRate = parseString(data["LoRaMESH"]["CRate"]);
-        uint8_t Class = parseString(data["LoRaMESH"]["Class"]);
-        uint8_t Window = parseString(data["LoRaMESH"]["Window"]);
+        uint8_t DB = parseString(data["loramesh"]["bw"]);
+        uint8_t SF = parseString(data["loramesh"]["sf"]);
+        uint8_t CRate = parseString(data["loramesh"]["crate"]);
+        uint8_t Class = parseString(data["loramesh"]["class"]);
+        uint8_t Window = parseString(data["loramesh"]["window"]);
 
         if (data["debug"])
         {
@@ -88,52 +88,52 @@ void LoRaEnd::sendMaster(String dados)
     {
         if (lora.SendPacket())
         {
-            Serial.print("Enviado por LoRaMESH:");
-            Serial.println("\tTamanho: " + String(lora.frame.size));
+            String confimation = "Enviado por LoRaMESH:\n\tTamanho: " + String(lora.frame.size);
+            Serial.println(confimation);
 
-            // TODO: não funcionou
-            // unsigned long starttime = millis();
-            // while (1)
-            // {
-            //     if ((millis() - starttime) > 2000)
-            //     {
-            //         break;
-            //     }
-            //     if (_serial->available() > 1)
-            //     {
+            unsigned long starttime = millis();
+            while (1)
+            {
+                    if ((millis() - starttime) > 2000)
+                    {
+                        break;
+                    }
+                if (_serial->available() > 1)
+                {
+                    String input = _serial->readString();
+                    // Serial.println("input: " + input + " tamando : " + input.length());
 
-            //         String c = _serial->readString();
-            //         Serial.print("c: ");
-            //         for (int i = 0; i < c.length(); i++)
-            //             Serial.print(c[i]);
-            //         Serial.println();
+                    String c = "";
+                    int index = 0;
+                    bool flag = false;
+                    while (index < input.length())
+                    {
+                        if (input[index] == '{')
+                            flag = true;
 
-            //         String ida;
-            //         bool falg = false;
-            //         for (int i = 0; i < c.length(); i++)
-            //         {
-            //             if (c[i] == '{')
-            //                 falg = true;
-            //             if (falg)
-            //             {
-            //                 if (c[i] == ',')
-            //                 {
-            //                     ida[i] = '\0';
-            //                     break;
-            //                 }
-            //                 ida[i] = c[i];
-            //             }
-            //         }
+                        if (flag)
+                        {
+                            c += input[index];
+                            if (input[index] == '}')
+                            {
+                                break;
+                            }
+                        }
+                        index++;
+                    }
+                    // Serial.println("c:" + c);
 
-            //         Serial.print("ida: ");
-            //         for (int i = 0; i < ida.length(); i++)
-            //             Serial.print(ida[i]);
-            //         Serial.println();
+                    int pos = c.indexOf('|');
+                    int end = c.indexOf('}');
 
-            //         break;
-            //     }
-            //     vTaskDelay(pdMS_TO_TICKS(100));
-            // }
+                    confimation = "\n\tRSSI:\n\t\tIda: -" + c.substring(pos + 1, end) + "\n\t\tVolta: -" + c.substring(1, pos);
+                    Serial.println(confimation);
+
+                    break;
+                }
+              
+                vTaskDelay(pdMS_TO_TICKS(100));
+            }
         }
         else
         {
@@ -157,8 +157,6 @@ void LoRaEnd::RSSI(int id)
 
 uint8_t LoRaEnd::parseString(String subdado)
 {
-    subdado.trim();
-    subdado.toUpperCase();
 
     if (subdado.equals("BW125"))
         return BW125;

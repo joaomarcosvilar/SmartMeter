@@ -66,14 +66,15 @@ void ADSreads::begin()
 
     pinMode(READY_PIN, INPUT_PULLUP);
 
-    Serial.println("Verificando conexao...");
-    for (int i = 0; i < 3; i++)
-    {
-        avaliable[i] = connectVerify(i);
-        if(!avaliable[i])
-            Serial.println("Sensor nao conectado ao canal " + String(i));
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
+    // Não está funcionando, está identificando os erros minimos e máximos
+    // Serial.println("Verificando conexao...");
+    // for (int i = 0; i < 3; i++)
+    // {
+    //     avaliable[i] = connectVerify(i);
+    //     if (!avaliable[i])
+    //         Serial.println("Sensor nao conectado no canal " + String(i));
+    //     vTaskDelay(pdMS_TO_TICKS(10));
+    // }
 }
 
 // Função auxiliar para os alertas de leituras do canal.
@@ -105,6 +106,7 @@ void ADSreads::setChannel(int channel)
 {
     if (channel != lastChannel)
     {
+        // Serial.println("Channel: " + String(channel));
         muxConfig = translateMuxconfig(channel);
         ads.startADCReading(muxConfig, /*continuous=*/true);
         lastChannel = channel;
@@ -157,6 +159,7 @@ float ADSreads::readInst(int channel)
         {
             newData = false;
             float voltage = ads.computeVolts(ads.getLastConversionResults());
+            // Serial.print(String(voltage, 5) + "|");
             return voltage;
         }
     }
@@ -229,28 +232,52 @@ float ADSreads::readRMS(int channel, float coefficients[])
 // Cálculo e conversão do sinal RMS do canal.
 bool ADSreads::connectVerify(int channel)
 {
-    // Verifica se todos os coeficientes estão no valor padrão 0, sendo necessário a calibração.
-    float min = 5.0;
-    float max = 0.0;
+    const float threshold = 0.01; // Threshold para variação mínima de leitura
+    bool sensorConnected = true;
 
-    for (int i = 0; i < samples; i++)
+    float currentValue = readInst(channel); // Leitura do canal 0 e conversão para volts
+
+    // Verifica a variação do valor atual em relação ao anterior
+    static float lastValue = currentValue;
+
+    currentValue = readInst(channel);
+
+    float difference = abs(currentValue - lastValue);
+    if (difference < threshold)
     {
-        int current = readInst(channel);
-
-        if (current > max)
-        {
-            max = current;
-            continue;
-        }
-        if (current < min)
-        {
-            min = current;
-            continue;
-        }
-    }
-
-    if ((max - min) < toleranceVoltage)
         return false;
+    }
     else
+    {
         return true;
+    }
+    // Lógica de verificação do sensor conectado
 }
+
+// // Verifica se todos os coeficientes estão no valor padrão 0, sendo necessário a calibração.
+// float min = 5.0;
+// float max = 0.0;
+
+// for (int i = 0; i < samples; i++)
+// {
+//     float current = readInst(channel);
+
+//     if (current > max)
+//     {
+//         max = current;
+//         continue;
+//     }
+//     if (current < min)
+//     {
+//         min = current;
+//         continue;
+//     }
+// }
+// // Serial.println("MAX: " + String(max));
+// // Serial.println("MIN: " + String(min));
+
+// if ((max - min) < toleranceVoltage)
+//     return false;
+// else
+//     return true;
+// }
