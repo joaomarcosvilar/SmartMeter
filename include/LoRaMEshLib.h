@@ -89,8 +89,6 @@ void LoRaEnd::sendMaster(String dados)
         if (lora.SendPacket())
         {
             String confimation = "Enviado por LoRaMESH:\n\tTamanho: " + String(lora.frame.size);
-            Serial.println(confimation);
-
             unsigned long starttime = millis();
             while (1)
             {
