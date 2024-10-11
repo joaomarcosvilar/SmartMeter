@@ -1,283 +1,192 @@
 #ifndef ADSREADS_H
 #define ADSREADS_H
 
-#include <Arduino.h>
 #include <Adafruit_ADS1X15.h>
-#include <Wire.h>
+#include <Arduino.h>
+#include <ArduinoJson.h>
+
+#define SAMPLES 860
 
 class ADSreads
 {
 public:
-    Adafruit_ADS1115 ads;
-    ADSreads(int _READY_PIN, uint8_t _adress);
-    void begin();
-    float readFreq(int channel);
-    float readInst(int channel);
-    float readRMS(int channel, float coefficients[]);
-    void IRAM_ATTR onNewDataReady(); // Função de Interrupção do pino ALRT
-    // float readADC(int channel);
-    // float readRealIns(int channel, float a, float b);
+    ADSreads(uint8_t _address);              // Construtor com endereço e offset
+    void begin();                            // Inicializa o ADS
+    void readADC(uint8_t channel);           // Captura leituras
+    float mean(uint8_t channel);             // Calcula média
+    float rmsSensor(uint8_t channel);        // Calcula RMS
+    JsonDocument autocalib(uint8_t channel); // Realiza autocalibração
+    float frequencia(uint8_t channel);
 
 private:
-    int READY_PIN;                           // Pino ALRT do ADS1115
-    uint16_t dataRate = RATE_ADS1115_860SPS; // 860 amostras por segundo
-    int samples = 860;                       // Quant de amostras para cálculos das funções
+    void clear();
+    Adafruit_ADS1115 ads;      // Objeto para ADS1115
+    int16_t offsetADC[3];      // Offset ADC
+    int16_t leituras[SAMPLES]; // Array de leituras
+    uint8_t address;
 
-    volatile bool newData = false;
-
-    static ADSreads *instance; // Ponteiro estático para a instância
-    uint8_t adress;
-
-    uint16_t muxConfig;
-    uint16_t translateMuxconfig(int channel);
-    void setChannel(int channel);
-    int lastChannel = -1;
-
-    bool connectVerify(int channel);
-    bool avaliable[4] = {true, true, true};
-    float toleranceVoltage = 0.05; // Teste para identificar se o sensor está conectado e funcionando corretamente
+    bool connected[3] = {true};
 };
 
-#endif
+#endif // ADSreads_H
 
-ADSreads *ADSreads::instance = nullptr;
-
-ADSreads::ADSreads(int READY_PIN, uint8_t _adress)
-    : READY_PIN(READY_PIN), adress(_adress)
+ADSreads::ADSreads(uint8_t _address) : address(_address)
 {
 }
 
 void ADSreads::begin()
 {
-    if (!ads.begin(adress))
+    ads.setDataRate(RATE_ADS1115_860SPS);
+
+    if (!ads.begin(address))
     {
-        Serial.print("Failed to initialize ADS:");
-        Serial.println(adress);
+        Serial.println("Failed to initialize ADS.");
         while (1)
             ;
     }
-    else
+    clear();
+
+    for (int i = 0; i < 3; i++)
     {
-        Serial.print("ADS initialized: ");
-        Serial.println(adress);
+        offsetADC[i] = (int16_t)mean(i);
     }
+    clear();
 
-    ads.setDataRate(dataRate);
-
-    pinMode(READY_PIN, INPUT_PULLUP);
-
-    // Não está funcionando, está identificando os erros minimos e máximos
-    // Serial.println("Verificando conexao...");
+    // ANELL para Nordeste: 59Hz a 61hz, considerando intervalor entre 55 e 65
     // for (int i = 0; i < 3; i++)
     // {
-    //     avaliable[i] = connectVerify(i);
-    //     if (!avaliable[i])
-    //         Serial.println("Sensor nao conectado no canal " + String(i));
-    //     vTaskDelay(pdMS_TO_TICKS(10));
+    //     float freq = frequencia(i);
+    //     if ((freq < 65.0) && (freq > 55.0))
+    //         connected[i] = true;
+    //     else
+    //         Serial.println("Sensor não conectado ao canal: " + String(i));
     // }
 }
 
-// Função auxiliar para os alertas de leituras do canal.
-void IRAM_ATTR ADSreads::onNewDataReady()
+void ADSreads::readADC(uint8_t channel)
 {
-    newData = true;
-}
-
-// Função auxiliar para mudança de canal para captura de dados.
-uint16_t ADSreads::translateMuxconfig(int channel)
-{
-    switch (channel)
+    if (connected[channel])
     {
-    case 0:
-        return ADS1X15_REG_CONFIG_MUX_SINGLE_0;
-    case 1:
-        return ADS1X15_REG_CONFIG_MUX_SINGLE_1;
-    case 2:
-        return ADS1X15_REG_CONFIG_MUX_SINGLE_2;
-    case 3:
-        return ADS1X15_REG_CONFIG_MUX_SINGLE_3;
-    default:
-        return ADS1X15_REG_CONFIG_MUX_SINGLE_0;
-    }
-}
-
-// Muda qual o canal é setado para a leitura dos valores, configurando para o modo CONTINUOS.
-void ADSreads::setChannel(int channel)
-{
-    if (channel != lastChannel)
-    {
-        // Serial.println("Channel: " + String(channel));
-        muxConfig = translateMuxconfig(channel);
-        ads.startADCReading(muxConfig, /*continuous=*/true);
-        lastChannel = channel;
-    }
-}
-
-// Leitura da frequência do sinal do canal selecionado.
-float ADSreads::readFreq(int channel)
-{
-    int zeroCrossings = 0;
-    int index = 0;
-    float voltage = 0, previousVoltage = 0;
-    setChannel(channel);
-
-    while (index < (samples + 1))
-    {
-        voltage += readInst(channel);
-        index++;
-    }
-    float mean = voltage / samples;
-
-    index = 0;
-    unsigned long startMillis = millis();
-    while (index < (samples + 1))
-    {
-        voltage = readInst(channel);
-        if ((previousVoltage > mean && voltage <= mean) || (previousVoltage < mean && voltage >= mean))
+        for (int i = 0; i < 860; i++)
         {
-            zeroCrossings++;
-        }
-        previousVoltage = voltage;
-        index++;
-    }
-
-    float frequency = (zeroCrossings / 2.0) / ((millis() - startMillis) / 1000.0);
-
-    return frequency;
-}
-
-// Leitura dos valores instantâneos do canal.
-float ADSreads::readInst(int channel)
-{
-    float voltMax = 0.0, voltMin = 5.0;
-    setChannel(channel);
-    unsigned long startTime = millis();
-
-    while (millis() - startTime < 500)
-    {
-        if (newData)
-        {
-            newData = false;
-            float voltage = ads.computeVolts(ads.getLastConversionResults());
-            // Serial.print(String(voltage, 5) + "|");
-            return voltage;
+            leituras[i] = ads.readADC_SingleEnded(0) - offsetADC[channel];
         }
     }
-    return 0;
 }
 
-// Cálculo e conversão do sinal RMS do canal.
-float ADSreads::readRMS(int channel, float coefficients[])
+float ADSreads::mean(uint8_t channel)
 {
-    int DEGREE = 3; // Grau do polinimio de calibração + 1
-
-    // Verifica se todos os coeficientes estão no valor padrão 0, sendo necessário a calibração.
-    int index = 0;
-    for (int i = 0; i < DEGREE; i++)
-    {
-        if (coefficients[i] == 0)
-            index++;
-    }
-    if (index == DEGREE)
+    if (!connected[channel])
         return 0;
 
     float sum = 0;
-    for (int i = 0; i < samples; i++)
+    for (int i = 0; i < 860; i++)
     {
-        float instValue = readInst(channel);
-        sum += instValue * instValue;
+        leituras[i] = ads.readADC_SingleEnded(channel);
+        sum += leituras[i];
     }
-    float sensorRMS = sqrt(sum / samples);
-    // Serial.println(sensorRMS,6);
-
-    float trueRMS = 0;
-
-    if (coefficients[2] == 0.0) // Para a regressão linear da corrente (Apresentou erro menor +-0.1A)(Corrente)
-    {
-        trueRMS = coefficients[1] + coefficients[0] * sensorRMS;
-    }
-    else // Usando polinomio de grau 2 (Tensão)
-    {
-        trueRMS = coefficients[2] + coefficients[1] * sensorRMS + coefficients[0] * sensorRMS * sensorRMS;
-    }
-
-    return trueRMS;
+    return sum / 860; // Retorna a média
 }
 
-// float ADSreads::readADC(int channel)
-// {
-//     if (avaliable[channel])
-//     {
-//         setChannel(channel);
-//         unsigned long startTime = millis();
-
-//         while (millis() - startTime < 500)
-//         {
-//             if (newData)
-//             {
-//                 newData = false;
-//                 return (ads.getLastConversionResults());
-//             }
-//         }
-//         Serial.println("ADC error in readADC");
-//         return 0;
-//     }
-//     else
-//     {
-//         Serial.println("Sensor não reconhecido!");
-//         return 0;
-//     }
-// }
-
-// Cálculo e conversão do sinal RMS do canal.
-bool ADSreads::connectVerify(int channel)
+float ADSreads::rmsSensor(uint8_t channel)
 {
-    const float threshold = 0.01; // Threshold para variação mínima de leitura
-    bool sensorConnected = true;
+    if (!connected[channel])
+        return 0;
 
-    float currentValue = readInst(channel); // Leitura do canal 0 e conversão para volts
-
-    // Verifica a variação do valor atual em relação ao anterior
-    static float lastValue = currentValue;
-
-    currentValue = readInst(channel);
-
-    float difference = abs(currentValue - lastValue);
-    if (difference < threshold)
+    readADC(channel);
+    float sum = 0;
+    for (int i = 0; i < 860; i++)
     {
-        return false;
+        sum += leituras[i] * leituras[i];
     }
-    else
-    {
-        return true;
-    }
-    // Lógica de verificação do sensor conectado
+    float rms = sqrt(sum / 860);
+    clear(); // Limpa as leituras após cálculo
+    return rms;
 }
 
-// // Verifica se todos os coeficientes estão no valor padrão 0, sendo necessário a calibração.
-// float min = 5.0;
-// float max = 0.0;
+void ADSreads::clear()
+{
+    for (int i = 0; i < SAMPLES; i++)
+    {
+        leituras[i] = 0;
+    }
+}
 
-// for (int i = 0; i < samples; i++)
-// {
-//     float current = readInst(channel);
+JsonDocument ADSreads::autocalib(uint8_t channel)
+{
+    JsonDocument coef;
 
-//     if (current > max)
-//     {
-//         max = current;
-//         continue;
-//     }
-//     if (current < min)
-//     {
-//         min = current;
-//         continue;
-//     }
-// }
-// // Serial.println("MAX: " + String(max));
-// // Serial.println("MIN: " + String(min));
+    if (!connected[channel])
+    {
+        Serial.println("Sensor não conectado ao canal: " + String(channel) + "Verifique a conexão do sensor ao Smartmeter.");
+        coef["a"] = 0.0;
+        coef["b"] = 0.0;
+        return coef;
+    }
 
-// if ((max - min) < toleranceVoltage)
-//     return false;
-// else
-//     return true;
-// }
+    Serial.println("Desligue as cargas, confirme com qualquer digito.");
+    while (true)
+    {
+        if (Serial.available() > 0)
+        {
+            String str = Serial.readString();
+            break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+
+    offsetADC[channel] = (int16_t)mean(channel);
+    Serial.println("offsetADC" + String(channel) + ":" + String(offsetADC[channel]) + "Iniciando autocalibração.");
+    readADC(channel);
+    float zeroRMSadc = rmsSensor(channel);
+    Serial.println("zeroRMSadc: " + String(zeroRMSadc) + "\nLigue a carga, confirme com o valor do multímetro.");
+    String inputString = "";
+    float maxRMS = 0.0;
+    while (true)
+    {
+        if (Serial.available() > 0)
+        {
+            inputString = Serial.readString();
+            Serial.println(inputString);
+            maxRMS = inputString.toFloat();
+            Serial.println("maxRMS: " + String(maxRMS));
+            break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    float maxRMSadc = rmsSensor(channel);
+
+    // Cálculo dos coeficientes
+    float a = maxRMS / (maxRMSadc - zeroRMSadc);
+    float b = -a * zeroRMSadc;
+    coef["a"] = a;
+    coef["b"] = b;
+    Serial.println("Coeficientes:\n\ta: " + String(a) + "\tb: " + String(b));
+
+    serializeJson(coef, Serial);
+    return coef;
+}
+
+float ADSreads::frequencia(uint8_t channel)
+{
+    // Le a frequencia do sinal
+    int zeroCrossings = 0;
+    int index = 0;
+    uint16_t ADC = 0, lastADC = 0;
+
+    index = 0;
+    unsigned long startMillis = millis();
+    for (int i = 0; i < SAMPLES; i++)
+    {
+        ADC = ads.readADC_SingleEnded(channel);
+        if ((lastADC > offsetADC[channel] && ADC <= offsetADC[channel]) || (lastADC < offsetADC[channel] && ADC >= offsetADC[channel]))
+        {
+            zeroCrossings++;
+        }
+        lastADC = ADC;
+    }
+
+    float freq = (zeroCrossings / 2.0) / ((millis() - startMillis) / 1000.0);
+
+    return freq;
+}

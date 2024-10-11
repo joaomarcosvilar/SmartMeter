@@ -16,14 +16,8 @@
 #include "../include/FileSystem.h"
 #include "../include/certificates.h"
 
-#define vREADY_PIN 18
-#define iREADY_PIN 19
-
-ADSreads SensorV(vREADY_PIN, 0x48); // 72
-ADSreads SensorI(iREADY_PIN, 0x4B); // 75
-
-void IRAM_ATTR onVReady() { SensorV.onNewDataReady(); }
-void IRAM_ATTR onIReady() { SensorI.onNewDataReady(); }
+ADSreads SensorV(0x48); // 72
+ADSreads SensorI(0x4B); // 75
 
 LoRaEnd lora(17, 16);
 
@@ -33,7 +27,6 @@ WiFiClientSecure espClient = WiFiClientSecure();
 PubSubClient MQTTclient(espClient);
 
 TaskHandle_t CalibrationHandle = NULL;
-TaskHandle_t InsertCoefficientsHandle = NULL;
 TaskHandle_t InitializeInterfaceHandle = NULL;
 TaskHandle_t SendHandle = NULL;
 TaskHandle_t TimerHandle = NULL;
@@ -43,7 +36,6 @@ TaskHandle_t InterfaceChangeHandle = NULL;
 
 void vInitializeInterface(void *pvParameters);
 void vCalibration(void *pvParameters);
-void vInsertCoefficients(void *pvParameters);
 void vInterfaceChange(void *pvParameters);
 void vSend(void *pvParameters);
 void vSerial(void *pvParameters);
@@ -52,7 +44,6 @@ void vSelectFunction(void *pvParameters);
 EventGroupHandle_t xEventGroup;
 #define ENVIADO (1 << 0) // Status de Send finalizado
 #define CALIBRATION (1 << 1)
-#define INSERT_COEFICIENTS (1 << 2)
 #define CHANGE_INTERFACE (1 << 3)
 
 #define ENVIANDO (1 << 4) // Status de iniciando o Send
@@ -60,10 +51,8 @@ EventGroupHandle_t xEventGroup;
 
 void vTimer(TaskHandle_t TimerHandle);
 
-#define SAMPLES 2680
 #define TimeOut 10000 // em milisegundos
 #define TimeMesh 5000 // em milisegundos
-#define DEGREE 3      // Grau do polinimio de calibração + 1
 #define TIMER 5000
 
 JsonDocument data;
@@ -107,10 +96,6 @@ void setup()
     }
   }
 
-  // Interrupções de leituras dos ADS
-  attachInterrupt(digitalPinToInterrupt(vREADY_PIN), onVReady, FALLING);
-  attachInterrupt(digitalPinToInterrupt(iREADY_PIN), onIReady, FALLING);
-
   // Inicializa os ADS
   Serial.println("Iniciando Sensor de Tensão...");
   SensorV.begin();
@@ -121,7 +106,6 @@ void setup()
 
   // Cria o EventGroup
   xEventGroup = xEventGroupCreate();
-  // xEnviando = xEventGroupCreate();
 
   // Cria Timer para envios
   int setTimer = 0;
@@ -168,16 +152,11 @@ void vSerial(void *pvParameters)
 
       if (inputString.equals("Calibration"))
         xEventGroupSetBits(xEventGroup, CALIBRATION);
-      if (inputString.equals("InsertCoefficients"))
-        xEventGroupSetBits(xEventGroup, INSERT_COEFICIENTS);
       if (inputString.equals("ChangeInterface"))
-      {
         xEventGroupSetBits(xEventGroup, CHANGE_INTERFACE);
-      }
       if (inputString.equals("InitializeInterface"))
-      {
         xTaskCreate(vInitializeInterface, "InitializeInterface", 4096, NULL, 1, &InitializeInterfaceHandle);
-      }
+
       if (inputString.equals("Format"))
       {
         files.format();
@@ -191,8 +170,6 @@ void vSerial(void *pvParameters)
       {
         files.list("/interface.json");
       }
-
-      inputString = "";
     }
     vTaskDelay(pdMS_TO_TICKS(100));
   }
@@ -204,52 +181,66 @@ void vSelectFunction(void *pvParameters)
   bool enviando = false;
   while (1)
   {
-    bits = xEventGroupWaitBits(xEventGroup, CALIBRATION | INSERT_COEFICIENTS | CHANGE_INTERFACE | CONTINUA | ENVIANDO, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
+    bits = xEventGroupWaitBits(xEventGroup, CALIBRATION | CHANGE_INTERFACE | CONTINUA | ENVIANDO, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
 
-    if (bits & ENVIANDO)
-    {
-      enviando = !enviando;
-      xEventGroupClearBits(xEventGroup, ENVIANDO);
-    }
+    // if (bits & ENVIANDO)
+    // {
+    //   enviando = true;
+    //   xTimerStop(TimerHandle, 0);
+    //   xEventGroupClearBits(xEventGroup, ENVIANDO);
+    // }
 
     // Verifica se não existe ou aguarda o envio para poder tratar a String recebida da serial
-    if (bits & CALIBRATION || bits & INSERT_COEFICIENTS || bits & CHANGE_INTERFACE)
+    if (bits & CALIBRATION || bits & CHANGE_INTERFACE)
     {
-      xTimerStop(TimerHandle, 0); // Pausa o Timer enquanto a interface é alterada
-      Serial.print("Aguarde");
-      if (enviando)
+      if (TimerHandle != 0)
+        xTimerStop(TimerHandle, 0); // Pausa o Timer enquanto a interface é alterada
+
+      if (SendHandle != NULL)
       {
         EventBits_t xSend;
         while (1)
         {
           Serial.print(".");
-          if (SendHandle != NULL)
+
+          xSend = xEventGroupWaitBits(xEventGroup, ENVIADO, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
+          if ((xSend & ENVIADO))
           {
-            xSend = xEventGroupWaitBits(xEventGroup, ENVIADO, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
-            if ((xSend & ENVIADO))
-            {
-              xTimerStop(TimerHandle, 0);
-              vTaskDelete(SendHandle);
-              xEventGroupClearBits(xEventGroup, ENVIANDO);
-              break;
-            }
+            xTimerStop(TimerHandle, 0);
+            xEventGroupClearBits(xEventGroup, ENVIANDO);
+            break;
           }
 
           vTaskDelay(pdMS_TO_TICKS(200));
         }
       }
 
+      // Serial.print("Aguarde");
+      // if (enviando)
+      // {
+      //   EventBits_t xSend;
+      //   while (1)
+      //   {
+      //     Serial.print(".");
+
+      //     xSend = xEventGroupWaitBits(xEventGroup, ENVIADO, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
+      //     if ((xSend & ENVIADO))
+      //     {
+      //       vTaskDelete(SendHandle);
+      //       xEventGroupClearBits(xEventGroup, ENVIANDO);
+      //       break;
+      //     }
+
+      //     vTaskDelay(pdMS_TO_TICKS(200));
+      //   }
+      // }
+
       if (bits & CALIBRATION)
       {
-        xTaskCreate(vCalibration, "Calibration", configMINIMAL_STACK_SIZE + 2048, NULL, 2, &CalibrationHandle);
+        xTaskCreate(vCalibration, "Calibration", 5 * 1024, NULL, 2, &CalibrationHandle);
         xEventGroupClearBits(xEventGroup, CALIBRATION);
       }
 
-      if (bits & INSERT_COEFICIENTS)
-      {
-        xTaskCreate(vInsertCoefficients, "InsertCoefficients", configMINIMAL_STACK_SIZE + 2048, NULL, 2, &InsertCoefficientsHandle);
-        xEventGroupClearBits(xEventGroup, INSERT_COEFICIENTS);
-      }
       if (bits & CHANGE_INTERFACE)
       {
         xTaskCreate(vInterfaceChange, "InterfaceChange", 6 * 1024, NULL, 1, &InterfaceChangeHandle);
@@ -364,7 +355,7 @@ void vInitializeInterface(void *pvParameters)
     Serial.println("AWS IoT Connected!");
   }
 
-  xTaskCreate(vSelectFunction, "vSelectFunction", 2*1024, NULL, 1, &SelectFunctionHandle);
+  xTaskCreate(vSelectFunction, "vSelectFunction", 2 * 1024, NULL, 1, &SelectFunctionHandle);
   xTaskCreate(vSerial, "Serial", 2048, NULL, 1, &SerialHandle);
 
   // Inicializa o timer
@@ -381,46 +372,57 @@ void vSend(void *pvParameters)
   bool alt;
   String sensor;
   JsonDocument info;
+  float coefficients[2] = {0};
 
   info["id"] = data["loramesh"]["id"]; // Usa-se o ID do loramesh como identificador do dispositivo de origem
 
-  float coefficients[DEGREE];
-  for (int i = 0; i < 2; i++)
+  // Leituras para o sensor de tensão
+  sensor = "V";
+  for (int i = 0; i < 3; i++)
   {
-    if (i == 0)
+    // Armazeno os coeficientes do canal
+    for (int j = 0; j < 2; j++)
     {
-      sensor = "V";
-      alt = false;
+      coefficients[j] = files.getCoef(sensor, i, j);
     }
-    else
-    {
-      sensor = "I";
-      alt = true;
-    }
-    for (int j = 0; j < 3; j++)
-    {
-      for (int c = 0; c < DEGREE; c++)
-      {
-        coefficients[c] = files.getCoef(sensor, j, c);
-      }
-      float rmsValue = !alt ? SensorV.readRMS(j, coefficients) : SensorI.readRMS(j, coefficients);
 
-      // Quando valores negativos, identifica como dispositivo desconectado
-      if (rmsValue < 0)
-      {
-        rmsValue = 0;
-      }
-      while (rmsValue > 1000)
-      {
-        rmsValue -= 1000;
-      }
+    // Recebe e traduz o valor rms em ADC do sensor
+    float rmsValue = SensorV.rmsSensor(i) * coefficients[0] + coefficients[1];
 
-      // Tratamento para não armazenar valores com mais de 2 casas decimais:
-      char bufferRMS[10];
-      sprintf(bufferRMS, "%.2f", rmsValue);
-      info[sensor][j] = bufferRMS;
-    }
+    // Caso em valor negativo, zera a leitura
+    if (rmsValue < 0)
+      rmsValue = 0.0;
+
+    // Tratamento para não armazenar valores com mais de 2 casas decimais:
+    char bufferRMS[10];
+    sprintf(bufferRMS, "%.2f", rmsValue);
+    info[sensor][i] = bufferRMS;
   }
+
+  // Leituras para o sensor de tensão
+  sensor = "I";
+  for (int i = 0; i < 3; i++)
+  {
+    // Armazeno os coeficientes do canal
+    for (int j = 0; j < 2; j++)
+    {
+      coefficients[j] = files.getCoef(sensor, i, j);
+    }
+
+    // Recebe e traduz o valor rms em ADC do sensor
+    float rmsValue = SensorI.rmsSensor(i) * coefficients[0] + coefficients[1];
+
+    // Caso em valor negativo, zera a leitura
+    if (rmsValue < 0)
+      rmsValue = 0.0;
+
+    // Tratamento para não armazenar valores com mais de 2 casas decimais:
+    char bufferRMS[10];
+    sprintf(bufferRMS, "%.2f", rmsValue);
+    info[sensor][i] = bufferRMS;
+  }
+
+  // Serializa para uma string de envio
   String str;
   serializeJson(info, str);
 
@@ -466,177 +468,58 @@ void vSend(void *pvParameters)
   vTaskDelete(NULL);
 }
 
-/*
-  TASK de Calibração dos Sensores e seus canais
-
-  FUNÇÂO: Funciona em conjunto com o programa calibration.py na pasta Calibration para
-  calibração automática dos canais dos sensores desejados pelos usuário.
-
-  USO:
-    1. Conecte as 3 cargas resistivas nos locais devidos (ficarão em série). E aguarde
-    com o multímetro na função adequada de leitura de tensão AC.
-
-    2. Inicialize o programa "calibraiton.py". Assim que ele autoconectar com a board,
-    irá solicitar qual o canal é sejado calibrar.
-
-    3. Em seguida, irá iniciar a solicitação da tensão lida pelo sensor, se repetindo
-    por 6 vezes. Essa repetção é explicada devido ao ESP32 que irá fazer a leitura da
-    tensão em 6 posições desse arranjo (uma de cada, a cada duas, e as três). Então,
-    em cada solicitação fazer a leitura da tensão na entrada do sensor do canal que
-    está sendo calibrado.
-
-    4. Após as 6 coletas, ele irá automaticamente enviar os coeficientes calculados
-    e irá perguntar se é desejada a calibração de outro canal. Caso sim, apenas
-    repetir os passos 2 e 3.
-
-    5. Para calibração de corrente, ainda não está funcionando (26/08/24).
-
-*/
 void vCalibration(void *pvParameters)
 {
-  Serial.println("OK_1");
-  Serial.flush();
-
-  int channel = -1;
-  bool alt = false;
-  String sensor = "V";
-
-  unsigned long starttime = millis();
-  while (true)
-  {
-    if (Serial.available() > 1)
-    {
-      String inputString = Serial.readString();
-      Serial.flush();
-      int limiter = inputString.indexOf('|');
-      String str_channel = inputString.substring(0, limiter);
-      String sensor = inputString.substring(limiter + 1);
-      channel = str_channel.toInt();
-
-      if (((!(sensor.equals("V")) && !(sensor.equals("I"))) || (channel == -1)))
-      {
-        Serial.println(inputString);
-        Serial.println("Sensor: " + sensor + "\nChannel: " + String(channel));
-        break;
-      }
-
-      alt = sensor.equals("I");
-
-      if (channel >= 0 && channel < 4)
-      {
-        for (int contt = 0; contt < SAMPLES; contt++)
-        {
-          float instValue = !alt ? SensorV.readInst(channel) : SensorI.readInst(channel);
-          Serial.println(String(instValue, 5));
-        }
-
-        Serial.println("OK_2"); // Pausa a captura de dados pelo Calibration.py
-        Serial.flush();
-        break;
-      }
-    }
-    if ((millis() - starttime) >= TimeOut)
-    {
-      break;
-    }
-    Serial.flush();
-  }
-  xEventGroupSetBits(xEventGroup, CONTINUA);
-  vTaskDelete(NULL);
-}
-
-/*
-  TASK de armazenamento dos coeficientes
-  FUNÇÂO: armazena no calibraiton.txt os coeficientes calculados para cada
-  canal e sensor acoplado. É chamada pelo software "calibration.py", mas pode
-  ser chamado manualmente pelo monitor serial.
-*/
-void vInsertCoefficients(void *pvParameters)
-{
-
-  int channel = 0;
-  bool alt = false;
-
-  unsigned long starttime = millis();
-  Serial.println("OK");
-
+  Serial.println("Digite o sensor(V ou I) e canal(0 - 2) para calibração (Ex. V:0): ");
   while (true)
   {
     if (Serial.available() > 0)
     {
       String inputString = Serial.readString();
-      Serial.flush();
-      int limiter = inputString.indexOf('|');
-      if (limiter == -1)
+      Serial.println("inputString: " + inputString);
+      int pos = inputString.indexOf(':');
+      if (pos < 0)
       {
-        Serial.println("Error: Delimitador '|' não encontrado.");
-        Serial.println(inputString);
-        Serial.flush();
+        Serial.println("Entrada inválida.");
+        break;
+      }
+      String sensor = inputString.substring(0, pos);
+      if (!(sensor.equals("V")) && !(sensor.equals("I")))
+      {
+        Serial.println("Sensor inválido.");
         break;
       }
 
-      String str_channel = inputString.substring(0, limiter);
-      String sensor = inputString.substring(limiter + 1);
-      channel = str_channel.toInt();
-      if ((!(sensor.equals("V")) && !(sensor.equals("I"))))
+      String STRchannel = inputString.substring(pos + 1, pos + 2);
+      uint8_t channel = STRchannel.toInt();
+      if (channel < 0 || channel > 2)
       {
-        Serial.flush();
+        Serial.println("Canal inválido.");
         break;
       }
 
-      Serial.print("OK_");
-      Serial.flush();
-      starttime = millis();
-      while (true)
-      {
-        if (Serial.available() > 0)
-        {
-          String inputString = Serial.readString(); // Lê a string recebida
-          Serial.flush();
-          int startPos = 0;
-          int delimiterPos = inputString.indexOf('|');
-          int coefCount = 0;
-          float coefficients[DEGREE];
+      Serial.println("sensor: " + sensor + "\tcanal: " + String(channel));
 
-          while (delimiterPos > 0 && coefCount < DEGREE)
-          {
-            // Extraia o coeficiente da substring
-            String coefStr = inputString.substring(startPos, delimiterPos);
-            coefficients[coefCount] = coefStr.toFloat();
-            coefCount++;
-            // Serial.println(inputString);
+      JsonDocument coef;
+      float coefi[2] = {0};
+      if (sensor.equals("V"))
+        coef = SensorV.autocalib(channel);
 
-            // Atualiza a posição de início e encontre o próximo delimitador
-            startPos = delimiterPos + 1;
-            delimiterPos = inputString.indexOf('|', startPos);
-          }
-          if (coefCount < DEGREE)
-          {
-            String coefStr = inputString.substring(startPos);
-            coefficients[coefCount] = coefStr.toFloat();
-          }
-          Serial.flush();
-          files.insCoef(sensor, channel, coefficients);
-          break;
-        }
-        Serial.flush();
+      else
+        coef = SensorI.autocalib(channel);
 
-        if ((millis() - starttime) >= TimeOut)
-        {
-          // Serial.println("Time Out");
-          break;
-        }
-      }
+      coefi[0] = coef["a"];
+      coefi[1] = coef["b"];
+      files.insCoef(sensor, channel, coefi);
 
-      break;
+      Serial.println("Canal do sensor calibrado!");
+      ESP.restart();
     }
-    if ((millis() - starttime) >= TimeOut)
-    {
-      break;
-    }
-    Serial.flush();
+    vTaskDelay(pdMS_TO_TICKS(100));
   }
-  ESP.restart();
+
+  xEventGroupSetBits(xEventGroup, CONTINUA);
+  vTaskDelete(NULL);
 }
 
 void vInterfaceChange(void *pvParameters)

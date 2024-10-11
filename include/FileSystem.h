@@ -33,7 +33,6 @@ private:
 #endif
 
 #define DEFAULT_Coef 0.0
-#define DEGREE 3 // Grau do polinimio de calibração + 1
 
 MySPIFFS::MySPIFFS() {}
 
@@ -67,37 +66,18 @@ void MySPIFFS::initCalibration()
 {
     JsonDocument data;
 
-    for (int i = 0; i < 2; i++)
+    sensor = "V";
+    for (int j = 0; j < 3; j++)
     {
-        if (i == 0)
-        {
-            sensor = "V";
-            for (int j = 0; j < 3; j++)
-            {
-                data[sensor][j][0] = -9035.0;
-                data[sensor][j][1] = 47880.0;
-                data[sensor][j][2] = -63221.0;
-            }
+        data[sensor][j][0] = 0.0;
+        data[sensor][j][1] = 0.0;
+    }
 
-            // {"V":[[-9035,47880,-63221],[0,0,0],[0,0,0]],"I":[[1331.170044,-3398.409912,0],[0,0,0],[0,0,0]]}
-        }
-        else
-        {
-            sensor = "I";
-            for (int j = 0; j < 3; j++)
-            {
-                data[sensor][j][0] = 1331.170044;
-                data[sensor][j][1] = -3398.409912;
-                data[sensor][j][2] = 0.0;
-            }
-        }
-        // for (int j = 0; j < 3; j++)
-        // {
-        //     for (int c = 0; c < DEGREE; c++)
-        //     {
-        //         data[sensor][j][c] = DEFAULT_Coef;
-        //     }
-        // }
+    sensor = "I";
+    for (int j = 0; j < 3; j++)
+    {
+        data[sensor][j][0] = 0.0;
+        data[sensor][j][1] = 0.0;
     }
 
     String str;
@@ -262,7 +242,7 @@ void MySPIFFS::insCoef(String _sensor, int channel, float coefficients[])
     DeserializationError error = deserializeJson(data, file);
     // error can be used for debugging
     file.close();
-    for (int i = 0; i < DEGREE; i++)
+    for (int i = 0; i < 2; i++)
     {
         data[_sensor][channel][i] = coefficients[i];
     }
