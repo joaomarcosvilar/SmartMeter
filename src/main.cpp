@@ -1,3 +1,13 @@
+/*
+Projeto: SmartMeter EndDevice
+Desenvolvedor: João Marcos Vilar @github: github.com/MrSandman69
+
+Software baseado no FreeRTOS de monitoramento, tensão e corrente, e
+envio por LoRaMESH, WiFi e GSM.
+*/
+
+/*---------------------- BIBLIOTECAS ----------------------*/
+// Bibliotecas principais:
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <HardwareSerial.h>
@@ -7,25 +17,34 @@
 #include "freertos/timers.h"
 #include "freertos/event_groups.h"
 
+// Comunicação
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <WiFiClientSecure.h>
 
+// Bibliotecas Auxiliares
 #include "../include/ADSreads.h"
 #include "../include/LoRaMEshLib.h"
 #include "../include/FileSystem.h"
 #include "../include/certificates.h"
 
+/*---------------------- OBJETOS DO DISPOSITIVOS ----------------------*/
+// Módúlos ADS1115: AC -> ADC
 ADSreads SensorV(0x48); // 72
 ADSreads SensorI(0x4B); // 75
 
+// Loramesh
 LoRaEnd lora(17, 16);
 
+// Acesso e escrita da flash memory do ESP32
 MySPIFFS files;
 
+// Comunicação WIFI
 WiFiClientSecure espClient = WiFiClientSecure();
 PubSubClient MQTTclient(espClient);
 
+/*---------------------- FreeRTOS ----------------------*/
+// Handle das tasks
 TaskHandle_t CalibrationHandle = NULL;
 TaskHandle_t InitializeInterfaceHandle = NULL;
 TaskHandle_t SendHandle = NULL;
@@ -34,6 +53,7 @@ TaskHandle_t SerialHandle = NULL;
 TaskHandle_t SelectFunctionHandle = NULL;
 TaskHandle_t InterfaceChangeHandle = NULL;
 
+// Prototipos das tasks
 void vInitializeInterface(void *pvParameters);
 void vCalibration(void *pvParameters);
 void vInterfaceChange(void *pvParameters);
@@ -42,29 +62,31 @@ void vSerial(void *pvParameters);
 void vSelectFunction(void *pvParameters);
 
 EventGroupHandle_t xEventGroup;
-#define ENVIADO (1 << 0) // Status de Send finalizado
-#define CALIBRATION (1 << 1)
-#define CHANGE_INTERFACE (1 << 3)
-
-#define ENVIANDO (1 << 4) // Status de iniciando o Send
-#define CONTINUA (1 << 5) // Inicializa o timer
 
 void vTimer(TaskHandle_t TimerHandle);
 
+// Bits do eventgroup
+#define ENVIADO (1 << 0) // Status de Send finalizado
+#define CALIBRATION (1 << 1)
+#define CHANGE_INTERFACE (1 << 3)
+#define ENVIANDO (1 << 4) // Status de iniciando o Send
+#define CONTINUA (1 << 5) // Inicializa o timer
+
+/*---------------------- GLOBAIS ----------------------*/
 #define TimeOut 10000 // em milisegundos
-#define TimeMesh 5000 // em milisegundos
 #define TIMER 5000
 
 JsonDocument data;
 String interface;
 
+#define TOPIC "smartmeter/power"
+
 bool debug = true;
-bool SEND = false; // Flag para verificar se a task vSend está em funcionamento
 
-#define AWS_IOT_PUBLISH_TOPIC "smartmeter/power"
-
+/*---------------------- SETUP ----------------------*/
 void setup()
 {
+  // Flag para LOGs do sistema
   data = files.begin();
   debug = data["debug"];
 
@@ -83,7 +105,6 @@ void setup()
         int ID = strID.toInt();
         if ((ID > 0) || (ID < 2046))
         {
-          // TODO: precisa verificar se existe outros dispositivos com mesmo ID
           files.ChangeInterface("loramesh", "id", ID);
           ESP.restart();
         }
@@ -104,7 +125,7 @@ void setup()
 
   Wire.setBufferSize(256);
 
-  // Cria o EventGroup
+  // EventGroup de seleção de tasks
   xEventGroup = xEventGroupCreate();
 
   // Cria Timer para envios
@@ -113,20 +134,24 @@ void setup()
     setTimer = data["t"];
   else
     setTimer = TIMER;
-
   TimerHandle = xTimerCreate("TimerEnvios", pdMS_TO_TICKS(setTimer), pdFALSE, (void *)0, vTimer);
 
+  // Inicializa a interface de comunicação dada as configurações na SPIFFS
   xTaskCreate(vInitializeInterface, "InitializeInterface", 4096, NULL, 1, &InitializeInterfaceHandle);
 
   if (debug)
-    Serial.println("Inicializado");
+    Serial.println("Inicializado!");
 }
 
 void loop()
 {
 }
+/*------------------------------------------------- TASKS -------------------------------------------------*/
 
-// Task de Acionamento dos Envios
+/*
+  - Identificação: Timer de envios
+  - Função: cria a task de envio a cada TIMER milisegundos. O TIMER é definido na SPIFFS.
+*/
 void vTimer(TaskHandle_t TimerHandle)
 {
   if (interface.equals(""))
@@ -139,6 +164,11 @@ void vTimer(TaskHandle_t TimerHandle)
   }
 }
 
+/*
+  - Identificação: Tradutor do Serial
+  - Função: monitora o Serial do ESP32, enviando para o EventGroup a task que deve ser inicializada
+ou tomando decisões mais simples.
+*/
 void vSerial(void *pvParameters)
 {
   unsigned long start = millis();
@@ -150,23 +180,21 @@ void vSerial(void *pvParameters)
     {
       inputString = Serial.readString();
 
-      if (inputString.equals("Calibration"))
+      if (inputString.equals("calibration"))
         xEventGroupSetBits(xEventGroup, CALIBRATION);
-      if (inputString.equals("ChangeInterface"))
+      if (inputString.equals("config"))
         xEventGroupSetBits(xEventGroup, CHANGE_INTERFACE);
-      if (inputString.equals("InitializeInterface"))
-        xTaskCreate(vInitializeInterface, "InitializeInterface", 4096, NULL, 1, &InitializeInterfaceHandle);
 
-      if (inputString.equals("Format"))
+      if (inputString.equals("format"))
       {
         files.format();
         ESP.restart();
       }
-      if (inputString.equals("List Coefficients"))
+      if (inputString.equals("list coeficients"))
       {
         files.list("/calibration.txt");
       }
-      if (inputString.equals("List Interface"))
+      if (inputString.equals("list interface"))
       {
         files.list("/interface.json");
       }
@@ -175,6 +203,11 @@ void vSerial(void *pvParameters)
   }
 }
 
+/*
+  - Identificação: EventGroup de Seleção de Task
+  - Função: Gerencia o acionamento das tasks de interação do usuário alinhando com os envios para
+evitar conflitos.
+*/
 void vSelectFunction(void *pvParameters)
 {
   EventBits_t bits;
@@ -182,13 +215,6 @@ void vSelectFunction(void *pvParameters)
   while (1)
   {
     bits = xEventGroupWaitBits(xEventGroup, CALIBRATION | CHANGE_INTERFACE | CONTINUA | ENVIANDO, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
-
-    // if (bits & ENVIANDO)
-    // {
-    //   enviando = true;
-    //   xTimerStop(TimerHandle, 0);
-    //   xEventGroupClearBits(xEventGroup, ENVIANDO);
-    // }
 
     // Verifica se não existe ou aguarda o envio para poder tratar a String recebida da serial
     if (bits & CALIBRATION || bits & CHANGE_INTERFACE)
@@ -215,26 +241,6 @@ void vSelectFunction(void *pvParameters)
         }
       }
 
-      // Serial.print("Aguarde");
-      // if (enviando)
-      // {
-      //   EventBits_t xSend;
-      //   while (1)
-      //   {
-      //     Serial.print(".");
-
-      //     xSend = xEventGroupWaitBits(xEventGroup, ENVIADO, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
-      //     if ((xSend & ENVIADO))
-      //     {
-      //       vTaskDelete(SendHandle);
-      //       xEventGroupClearBits(xEventGroup, ENVIANDO);
-      //       break;
-      //     }
-
-      //     vTaskDelay(pdMS_TO_TICKS(200));
-      //   }
-      // }
-
       if (bits & CALIBRATION)
       {
         xTaskCreate(vCalibration, "Calibration", 5 * 1024, NULL, 2, &CalibrationHandle);
@@ -259,10 +265,9 @@ void vSelectFunction(void *pvParameters)
 }
 
 /*
-  TASK de inicialização da interface de envio dos dados dos sensores
-
-  Função: identifica qual a interface ativa no arquivo interface.json e inicializa o
-  dispositivo adequado. Ela só acontece uma única vez.
+  - Identificação: TASK de inicialização da interface de comunicação
+  - Função: identifica qual a interface ativa no arquivo interface.json e inicializa o
+dispositivo adequado. Ela só acontece uma única vez.
 */
 void vInitializeInterface(void *pvParameters)
 {
@@ -364,9 +369,14 @@ void vInitializeInterface(void *pvParameters)
   vTaskDelete(NULL); // Autodelete
 }
 
+
+/*
+  - Identificação: Task de envio dos dados
+  - Função: Faz a leitura dos sensores, empacota os dados em uma estrutura JSON e 
+envia de acordo com a interface selecionada para comunicação.
+*/
 void vSend(void *pvParameters)
 {
-  // Altera o estado de SEND para não ocorrer outras tasks
   xEventGroupSetBits(xEventGroup, ENVIANDO);
 
   bool alt;
@@ -439,19 +449,13 @@ void vSend(void *pvParameters)
     const char *strWiFi = str.c_str();
     int buffer = sizeof(strWiFi);
 
-    if (!MQTTclient.connected())
+    if (!MQTTclient.connected()) // Caso não conectado, reinicia todo sistema
     {
-      Serial.println("Não conectado ao MQTT, reiniciando conexão.");
-      const char *THINGNAME = data["wifi"]["name"];
-      while (!MQTTclient.connect(THINGNAME))
-      {
-        Serial.println(".");
-        Serial.println(String(MQTTclient.state()));
-        vTaskDelay(pdMS_TO_TICKS(100));
-      }
+      Serial.println("Não conectado ao MQTT, reiniciando.");
+      ESP.restart();
     }
 
-    if (MQTTclient.publish(AWS_IOT_PUBLISH_TOPIC, strWiFi))
+    if (MQTTclient.publish(TOPIC, strWiFi))
     {
       Serial.println("Enviado por WiFi.\n\tTamanho: " + String(str.length()) + "\n\tRSSI: " + String(WiFi.RSSI()));
     }
@@ -461,6 +465,7 @@ void vSend(void *pvParameters)
 
   if (interface.equals("ppp"))
   {
+    // Reservado para comunicação GSM
   }
 
   xEventGroupSetBits(xEventGroup, ENVIADO);
@@ -468,6 +473,33 @@ void vSend(void *pvParameters)
   vTaskDelete(NULL);
 }
 
+
+/*
+  - Identificaçõa: Task de calibração dos sensores
+  - Função: Recebe os dados de referência do usuário de voltímetro e de amperímetro,
+faz o procedimento de leituras e cáculos por regressão linear para obtenção dos coeficientes
+para tradução dos dados obtidos pelos sensores para valores reais.
+
+  - Procedimento de uso:
+  1. Após a conexão com o computador e iniciar a comunicação serial, chamar a TASK inserindo 
+"calibration" no serial. Aguarde o restante das intruções pelo serial.
+  2. Indicar qual o sensor e o canal vai realizar a calibração, sendo V para os sensores
+de tensão e I para os sensores de corrente. Os sensores são dividos aos canais de cada ADS1115, por 
+isso são identificados de 0 a 2 (3 canais). Então, utilize "V:0" para o sensor de tensão no canal 0,
+assim por diante.
+  3. Desligue o disjuntor da fase que vai iniciar a calibração, permanecendo a alimentação do SmartMeter
+pelo USB do computador. Nesse momento, será lido os valores para o sistema desligado, tensão ou corrente.
+No momento adequado, será solicitado para ligar a fase, realizar a leitura de referência (voltímetro ou 
+amperímetro) e inserir o valor lido no serial. ATENÇÂO: Envie o valor com um ponto no lugar da vírgula, 
+exemplo: CORRETO: "102.5" ERRADO: "102,5".
+  4. Basta aguardar o sistema computar e calcular os coeficientes, que serão armazenado na memória do ESP.
+Ao final, o sistema irá reiniciar. 
+
+Caso seja o desejo realizar para os demais sensores, basta repetir os mesmos passos.
+
+ATENÇÃO: Caso a necessidade de calibração do sistema antes do local definitivo de uso, permanecer a mesma
+quantidade de voltas no sensor de corrente para que seja permanecida a proporcionalidade do sistema.
+*/
 void vCalibration(void *pvParameters)
 {
   Serial.println("Digite o sensor(V ou I) e canal(0 - 2) para calibração (Ex. V:0): ");
@@ -476,7 +508,7 @@ void vCalibration(void *pvParameters)
     if (Serial.available() > 0)
     {
       String inputString = Serial.readString();
-      Serial.println("inputString: " + inputString);
+      // Serial.println("inputString: " + inputString);
       int pos = inputString.indexOf(':');
       if (pos < 0)
       {
@@ -498,7 +530,7 @@ void vCalibration(void *pvParameters)
         break;
       }
 
-      Serial.println("sensor: " + sensor + "\tcanal: " + String(channel));
+      // Serial.println("sensor: " + sensor + "\tcanal: " + String(channel));
 
       JsonDocument coef;
       float coefi[2] = {0};
@@ -522,6 +554,57 @@ void vCalibration(void *pvParameters)
   vTaskDelete(NULL);
 }
 
+
+/*
+  - Identificação: Task de mudança de dados de interface
+  - Função: Faz a configuração de interface de comunicação, modo desenvolvedor e período
+de envio dos dados.
+
+  - Procedimento de uso:
+  1. Iniciar a task inserido "config". Aguarde a mensagem para inserir o comando.
+  2.1. Para mudança do modo desenvolvedor, inserir "debug -;", ele irá alternar o modo.
+  2.2. Para mudar o valor do período de envios, inserir "timer -5000;" (altere o valor de 
+5000 para o valor desejado). ATENÇÃO: valor em milisegundos.
+  2.3. Para qualquer outra mudança dos dados da interface de comunicação, obeder a ordem de:
+          {interface} dado:subdado dado:subdado;
+  Exemplo: 'wifi -ssid:JoaoMarcos -pwd:TestesMIC;'
+    Onde: 
+        "-" indica o inicio da subkey
+        ":" indica inicio do valor da subkey
+        ";" indica final do comando
+
+  Para que a interface seja a desejada para o envio dos dados, é preciso inserir o comando
+  "status:true". Exemplo: 'wifi -status:true;'.
+
+  As interfaces esperadas são:
+    - wifi
+      Dados que podem ser alterados:
+        - status
+        - ssid
+        - pwd
+        - name (nome do servidor)
+        - serv (domination do servidor)
+    - loramesh
+        - status
+        - id
+        - bw (Bandwith: BW125; BW250; BW500)
+        - sf (SpreadingFactor: SF_LoRa_7;SF_LoRa_8;SF_LoRa_9;SF_LoRa_10;SF_LoRa_11;SF_LoRa_12;SF_FSK)
+        - crate (Coding Rate: CR4_5;CR4_6;CR4_7;CR4_8)
+        - class (Classe: LoRa_CLASS_A;LoRa_CLASS_C)
+        - window (Janela de envio: LoRa_WINDOW_5s;LoRa_WINDOW_10s;LoRa_WINDOW_15s)
+        - pwd (senha)
+        - bd (BaudeRate, default 9600)
+        ATENÇÃO: para os subdados, realizar a leitura da datasheet do lora empregado, os dados 
+      de bw a window deve obeceder 
+    - ppp
+        -
+        -
+        -
+      
+      Pode ser inseridos quandos dados necessários no mesmo envio do serial, mas ao final deve ser
+      inserido ";".
+
+*/
 void vInterfaceChange(void *pvParameters)
 {
 
@@ -549,13 +632,6 @@ void vInterfaceChange(void *pvParameters)
     {
       if (debug)
         Serial.println("inputString: " + inputString);
-
-      /*inserção de dados do interface de Exemplo:
-        WiFi -SSID:JoaoMarcos -Password:TestesMIC;
-        "-" indica o inicio da subkey
-        ":" indica inicio do valor da subkey
-        ";" indica final do comando
-      verificação de escrita para o tipo de leitura*/
 
       int pos = inputString.indexOf('-');
 

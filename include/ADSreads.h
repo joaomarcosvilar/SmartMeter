@@ -136,10 +136,10 @@ JsonDocument ADSreads::autocalib(uint8_t channel)
     }
 
     offsetADC[channel] = (int16_t)mean(channel);
-    Serial.println("offsetADC" + String(channel) + ":" + String(offsetADC[channel]) + "Iniciando autocalibração.");
+    Serial.println(/*"offsetADC" + String(channel) + ":" + String(offsetADC[channel]) + */"Iniciando autocalibração.");
     readADC(channel);
     float zeroRMSadc = rmsSensor(channel);
-    Serial.println("zeroRMSadc: " + String(zeroRMSadc) + "\nLigue a carga, confirme com o valor do multímetro.");
+    Serial.println(/*"zeroRMSadc: " + String(zeroRMSadc) + */"Ligue a carga, confirme com o valor do multímetro.");
     String inputString = "";
     float maxRMS = 0.0;
     while (true)
