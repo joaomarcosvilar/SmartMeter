@@ -102,6 +102,9 @@ void MySPIFFS::initInterface()
     data["wifi"]["pwd"] = "PWD";
     data["wifi"]["name"] = "SmartMeter";
     data["wifi"]["serv"] = "a1o3x5gedhdznd-ats.iot.us-east-2.amazonaws.com";
+    data["wifi"]["topic"] = "smartmeter/power";
+    data["wifi"]["subtopic"] = "smartmeter/subpower";
+    data["wifi"]["port"] = 8883;
 
     // loramesh: é a comunicação DEFAULT_Coef, precisa configurar o loramesh na inicialização
     data["loramesh"]["status"] = true;
@@ -249,7 +252,10 @@ void MySPIFFS::insCoef(String _sensor, int channel, float coefficients[])
 
     file = SPIFFS.open("/calibration.txt", FILE_WRITE);
     String str;
+
+    // Debug
     serializeJson(data, Serial);
+
     serializeJson(data, str);
     file.print(str);
     file.close();

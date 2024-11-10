@@ -94,6 +94,7 @@ void LoRaEnd::sendMaster(String dados)
             {
                     if ((millis() - starttime) > 2000)
                     {
+                        Serial.println("Master não encontrado.");
                         break;
                     }
                 if (_serial->available() > 1)
@@ -124,7 +125,7 @@ void LoRaEnd::sendMaster(String dados)
                     int pos = c.indexOf('|');
                     int end = c.indexOf('}');
 
-                    confimation = "\n\tRSSI:\n\t\tIda: -" + c.substring(pos + 1, end) + "\n\t\tVolta: -" + c.substring(1, pos);
+                    confimation += "\n\tRSSI:\n\t\tSlave -> Master: -" + c.substring(pos + 1, end) + "\n\t\tMaster -> Slave: -" + c.substring(1, pos);
                     Serial.println(confimation);
 
                     break;

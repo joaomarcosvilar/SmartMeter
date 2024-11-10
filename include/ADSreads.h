@@ -65,19 +65,23 @@ void ADSreads::begin()
 
 void ADSreads::readADC(uint8_t channel)
 {
-    if (connected[channel])
+    // if (connected[channel])
+    // {
+    //     for (int i = 0; i < 860; i++)
+    //     {
+    //         leituras[i] = ads.readADC_SingleEnded(0) - offsetADC[channel];
+    //     }
+    // }
+    for (int i = 0; i < 860; i++)
     {
-        for (int i = 0; i < 860; i++)
-        {
-            leituras[i] = ads.readADC_SingleEnded(0) - offsetADC[channel];
-        }
+        leituras[i] = ads.readADC_SingleEnded(0) - offsetADC[channel];
     }
 }
 
 float ADSreads::mean(uint8_t channel)
 {
-    if (!connected[channel])
-        return 0;
+    // if (!connected[channel])
+    //     return 0;
 
     float sum = 0;
     for (int i = 0; i < 860; i++)
@@ -90,8 +94,8 @@ float ADSreads::mean(uint8_t channel)
 
 float ADSreads::rmsSensor(uint8_t channel)
 {
-    if (!connected[channel])
-        return 0;
+    // if (!connected[channel])
+    //     return 0;
 
     readADC(channel);
     float sum = 0;
@@ -116,13 +120,13 @@ JsonDocument ADSreads::autocalib(uint8_t channel)
 {
     JsonDocument coef;
 
-    if (!connected[channel])
-    {
-        Serial.println("Sensor não conectado ao canal: " + String(channel) + "Verifique a conexão do sensor ao Smartmeter.");
-        coef["a"] = 0.0;
-        coef["b"] = 0.0;
-        return coef;
-    }
+    // if (!connected[channel])
+    // {
+    //     Serial.println("Sensor não conectado ao canal: " + String(channel) + "Verifique a conexão do sensor ao Smartmeter.");
+    //     coef["a"] = 0.0;
+    //     coef["b"] = 0.0;
+    //     return coef;
+    // }
 
     Serial.println("Desligue as cargas, confirme com qualquer digito.");
     while (true)
@@ -136,10 +140,10 @@ JsonDocument ADSreads::autocalib(uint8_t channel)
     }
 
     offsetADC[channel] = (int16_t)mean(channel);
-    Serial.println(/*"offsetADC" + String(channel) + ":" + String(offsetADC[channel]) + */"Iniciando autocalibração.");
+    Serial.println(/*"offsetADC" + String(channel) + ":" + String(offsetADC[channel]) + */ "Iniciando autocalibração.");
     readADC(channel);
     float zeroRMSadc = rmsSensor(channel);
-    Serial.println(/*"zeroRMSadc: " + String(zeroRMSadc) + */"Ligue a carga, confirme com o valor do multímetro.");
+    Serial.println(/*"zeroRMSadc: " + String(zeroRMSadc) + */ "Ligue a carga, confirme com o valor do multímetro.");
     String inputString = "";
     float maxRMS = 0.0;
     while (true)
@@ -147,9 +151,9 @@ JsonDocument ADSreads::autocalib(uint8_t channel)
         if (Serial.available() > 0)
         {
             inputString = Serial.readString();
-            Serial.println(inputString);
+            // Serial.println(inputString);
             maxRMS = inputString.toFloat();
-            Serial.println("maxRMS: " + String(maxRMS));
+            // Serial.println("maxRMS: " + String(maxRMS));
             break;
         }
         vTaskDelay(pdMS_TO_TICKS(100));
@@ -164,6 +168,7 @@ JsonDocument ADSreads::autocalib(uint8_t channel)
     Serial.println("Coeficientes:\n\ta: " + String(a) + "\tb: " + String(b));
 
     serializeJson(coef, Serial);
+    Serial.println("\n");
     return coef;
 }
 
