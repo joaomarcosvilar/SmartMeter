@@ -74,7 +74,7 @@ void ADSreads::readADC(uint8_t channel)
     // }
     for (int i = 0; i < 860; i++)
     {
-        leituras[i] = ads.readADC_SingleEnded(0) - offsetADC[channel];
+        leituras[i] = ads.readADC_SingleEnded(channel) - offsetADC[channel];
     }
 }
 
@@ -89,6 +89,7 @@ float ADSreads::mean(uint8_t channel)
         leituras[i] = ads.readADC_SingleEnded(channel);
         sum += leituras[i];
     }
+    clear();
     return sum / 860; // Retorna a média
 }
 

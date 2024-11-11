@@ -44,6 +44,9 @@ MySPIFFS files;
 WiFiClientSecure espClient = WiFiClientSecure();
 PubSubClient MQTTclient(espClient);
 
+WiFiClient espClientInsecure;
+PubSubClient MQTTclientInsecure(espClientInsecure);
+
 /*---------------------- FreeRTOS ----------------------*/
 // Handle das tasks
 TaskHandle_t CalibrationHandle = NULL;
@@ -327,52 +330,70 @@ void vInitializeInterface(void *pvParameters)
   {
     // Conexão com o Broker
     const char *SERV = data["wifi"]["serv"];
+    // const char *SERV = "test.mosquitto.org";
     Serial.println("Servidor: " + String(SERV));
     const char *THINGNAME = data["wifi"]["name"];
     Serial.println("Thingname: " + String(THINGNAME));
 
     const char *AWS_IOT_SUBSCRIBE_TOPIC = data["wifi"]["subtopic"];
     int PORT = data["wifi"]["port"];
-
-    // Configure WiFiClientSecure to use the AWS IoT device credentials
-    if (PORT == 1883)
+    if (PORT == 8883)
     {
-      espClient.setInsecure();
-    }
-    else
-    {
+      // Configure WiFiClientSecure to use the AWS IoT device credentials
       espClient.setCACert(AWS_CERT_CA);
       espClient.setCertificate(AWS_CERT_CRT);
       espClient.setPrivateKey(AWS_CERT_PRIVATE);
-    }
 
-    // Connect to the MQTT broker on the AWS endpoint we defined earlier
-    MQTTclient.setServer(SERV, PORT);
+      // Connect to the MQTT broker on the AWS endpoint we defined earlier
+      MQTTclient.setServer(SERV, PORT);
 
-    // Create a message handler
-    // client.setCallback(messageHandler);
+      // Create a message handler
+      // client.setCallback(messageHandler);
 
-    Serial.println("Connecting to AWS IOT");
+      Serial.println("Connecting to AWS IOT");
 
-    unsigned long start = millis();
-    while (!MQTTclient.connect(THINGNAME))
-    {
-      Serial.println(".");
-      Serial.println(String(MQTTclient.state()));
-      if ((millis() - start) > TimeOut)
+      unsigned long start = millis();
+      while (!MQTTclient.connect(THINGNAME))
       {
-        Serial.println("\nERROR.");
-        xTaskCreate(vSelectFunction, "vSelectFunction", 2 * 1024, NULL, 1, &SelectFunctionHandle);
-        xTaskCreate(vSerial, "Serial", 2048, NULL, 1, &SerialHandle);
-        vTaskDelete(NULL);
+        Serial.println(".");
+        Serial.println(String(MQTTclient.state()));
+        if ((millis() - start) > TimeOut)
+        {
+          Serial.println("\nERROR.");
+          xTaskCreate(vSelectFunction, "vSelectFunction", 2 * 1024, NULL, 1, &SelectFunctionHandle);
+          xTaskCreate(vSerial, "Serial", 2048, NULL, 1, &SerialHandle);
+          vTaskDelete(NULL);
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
       }
-      vTaskDelay(pdMS_TO_TICKS(100));
+
+      // Subscribe to a topic
+      MQTTclient.subscribe(AWS_IOT_SUBSCRIBE_TOPIC);
+
+      Serial.println("AWS IoT Connected!");
     }
+    else
+    {
+      MQTTclientInsecure.setServer(SERV, PORT);
 
-    // Subscribe to a topic
-    MQTTclient.subscribe(AWS_IOT_SUBSCRIBE_TOPIC);
+      unsigned long start = millis();
+      while (!MQTTclientInsecure.connect(THINGNAME))
+      {
+        Serial.println(".");
+        Serial.println(String(MQTTclientInsecure.state()));
+        if ((millis() - start) > TimeOut)
+        {
+          Serial.println("\nERROR.");
+          xTaskCreate(vSelectFunction, "vSelectFunction", 2 * 1024, NULL, 1, &SelectFunctionHandle);
+          xTaskCreate(vSerial, "Serial", 2048, NULL, 1, &SerialHandle);
+          vTaskDelete(NULL);
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+      }
 
-    Serial.println("AWS IoT Connected!");
+      MQTTclientInsecure.subscribe(AWS_IOT_SUBSCRIBE_TOPIC);
+      Serial.println("Server Connected!");
+    }
   }
 
   xTaskCreate(vSelectFunction, "vSelectFunction", 2 * 1024, NULL, 1, &SelectFunctionHandle);
@@ -461,24 +482,58 @@ void vSend(void *pvParameters)
     const char *strWiFi = str.c_str();
     int buffer = sizeof(strWiFi);
 
-    if (!MQTTclient.connected())
+    int PORT = data["wifi"]["port"];
+
+    // Secure
+    if (PORT == 8883)
     {
-      const char *THINGNAME = data["wifi"]["name"];
-      while (!MQTTclient.connect(THINGNAME))
+      // Serial.println("Secure");
+      if (!MQTTclient.connected())
       {
-        Serial.println(".");
-        Serial.println(String(MQTTclient.state()));
-        vTaskDelay(pdMS_TO_TICKS(100));
+        const char *THINGNAME = data["wifi"]["name"];
+        while (!MQTTclient.connect(THINGNAME))
+        {
+          Serial.println(".");
+          Serial.println(String(MQTTclient.state()));
+          vTaskDelay(pdMS_TO_TICKS(100));
+        }
       }
-    }
 
-    const char *TOPIC = data["wifi"]["topic"];
-    if (MQTTclient.publish(TOPIC, strWiFi))
+      const char *TOPIC = data["wifi"]["topic"];
+      if (MQTTclient.publish(TOPIC, strWiFi))
+      {
+        Serial.println("Enviado por WiFi.\n\tTamanho: " + String(str.length()) + "\n\tRSSI: " + String(WiFi.RSSI()));
+      }
+
+      MQTTclient.loop();
+    }
+    else
     {
-      Serial.println("Enviado por WiFi.\n\tTamanho: " + String(str.length()) + "\n\tRSSI: " + String(WiFi.RSSI()));
-    }
+      // Serial.println("Insecure");
+      if (!MQTTclientInsecure.connected())
+      {
+        unsigned long start = millis();
+        const char *THINGNAME = data["wifi"]["name"];
+        while (!MQTTclientInsecure.connect(THINGNAME))
+        {
+          Serial.println(".");
+          Serial.println(String(MQTTclientInsecure.state()));
 
-    MQTTclient.loop();
+          if ((millis() - start) > TimeOut)
+            ESP.restart();
+
+          vTaskDelay(pdMS_TO_TICKS(500));
+        }
+      }
+
+      const char *TOPIC = data["wifi"]["topic"];
+      if (MQTTclientInsecure.publish(TOPIC, strWiFi))
+      {
+        Serial.println("Enviado por WiFi.\n\tTamanho: " + String(str.length()) + "\n\tRSSI: " + String(WiFi.RSSI()));
+      }
+
+      MQTTclientInsecure.loop();
+    }
   }
 
   if (interface.equals("ppp"))
@@ -568,6 +623,24 @@ void vCalibration(void *pvParameters)
       files.insCoef(sensor, channel, coefi);
 
       Serial.println("Canal do sensor calibrado!");
+
+      Serial.println("Aplicar os mesmos coeficientes nos outros canais?(y/n)");
+      while (true)
+      {
+        if (Serial.available() > 0)
+        {
+          inputString = Serial.readString();
+          if (inputString.equals("y"))
+          {
+            for (int i = 0; i++; i < 3)
+            {
+              files.insCoef(sensor, i, coefi);
+            }
+          }
+          break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+      }
       ESP.restart();
     }
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -606,6 +679,9 @@ de envio dos dados.
         - pwd
         - name (nome do servidor)
         - serv (domination do servidor)
+        - topic
+        - subtopic
+        - port
     - loramesh
         - status
         - id
@@ -681,7 +757,7 @@ void vInterfaceChange(void *pvParameters)
       }
 
       inputString = inputString.substring(pos + 1, inputString.length());
-      Serial.println("inputString cortado: " + inputString);
+      // Serial.println("inputString cortado: " + inputString);
 
       while (1)
       {

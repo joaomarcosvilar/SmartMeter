@@ -69,15 +69,15 @@ void MySPIFFS::initCalibration()
     sensor = "V";
     for (int j = 0; j < 3; j++)
     {
-        data[sensor][j][0] = 0.0;
-        data[sensor][j][1] = 0.0;
+        data[sensor][j][0] = 0.053850293;
+        data[sensor][j][1] = -1.55893445;
     }
 
     sensor = "I";
     for (int j = 0; j < 3; j++)
     {
-        data[sensor][j][0] = 0.0;
-        data[sensor][j][1] = 0.0;
+        data[sensor][j][0] = 0.0242537;
+        data[sensor][j][1] = -0.240645736;
     }
 
     String str;
@@ -254,7 +254,7 @@ void MySPIFFS::insCoef(String _sensor, int channel, float coefficients[])
     String str;
 
     // Debug
-    serializeJson(data, Serial);
+    // serializeJson(data, Serial);
 
     serializeJson(data, str);
     file.print(str);
