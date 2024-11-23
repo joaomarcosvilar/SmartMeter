@@ -49,7 +49,7 @@ Quando armazenado e reiniciado, a seleção default para a interface selecinada 
 >
 > Modo desenvolvedor: ativo
 
-Todas essas informações podem ser alteradas posteriormente a inicialização. Na seção [Comandos de configuração](comandos-de-configuração) detalha os comandos para a configuração desejada.
+Todas essas informações podem ser alteradas posteriormente a inicialização. Nas próximas seções detalha os comandos para a configuração desejada.
 
 
 ## Comunicação
@@ -134,7 +134,8 @@ Exemplo: 'wifi -ssid:JoaoMarcos -pwd:TestesMIC;'
 >  - Pode ser inseridos quandos dados necessários no mesmo envio do serial, as o final deve ser inserido ";".
 > - As entradas esperadas são indetificadas na entrada do envio da configuração. Mas, para as configurações para o LoRaMESH, seguir as identificações utilizada por @elcereza na libray: https://github.com/elcereza/LoRaMESH 
 
-
+> [!IMPORTANT]
+> Os certificados utilizados em servidores MQQT são armazenados diretamente pelo software. Estão anexados em [Certificados](https://github.com/MrSandman69/SmartMeter/blob/main/include/certificates.h). Assim, faz-se preciso a troca e reenvio do software. 
 
 ## Calibração
 
