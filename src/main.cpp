@@ -76,7 +76,7 @@ void vTimer(TaskHandle_t TimerHandle);
 #define CONTINUA (1 << 3)
 
 /*---------------------- GLOBAIS ----------------------*/
-#define TimeOut 10000 // em milisegundos
+#define TimeOut 30*1000 // em milisegundos
 #define TIMER 5000
 
 JsonDocument data;

@@ -69,15 +69,15 @@ void MySPIFFS::initCalibration()
     sensor = "V";
     for (int j = 0; j < 3; j++)
     {
-        data[sensor][j][0] = 0.053850293;
-        data[sensor][j][1] = -1.55893445;
+        data[sensor][j][0] = 0.0;
+        data[sensor][j][1] = 0.0;
     }
 
     sensor = "I";
     for (int j = 0; j < 3; j++)
     {
-        data[sensor][j][0] = 0.0242537;
-        data[sensor][j][1] = -0.240645736;
+        data[sensor][j][0] = 0.0;
+        data[sensor][j][1] = 0.0;
     }
 
     String str;
@@ -94,7 +94,7 @@ void MySPIFFS::initInterface()
     data["debug"] = true;
 
     // Tempo de envio
-    data["t"] = 5000;
+    data["timer"] = 5000;
 
     // Dados referente à comunicação wifi
     data["wifi"]["status"] = false;
@@ -104,7 +104,7 @@ void MySPIFFS::initInterface()
     data["wifi"]["serv"] = "a1o3x5gedhdznd-ats.iot.us-east-2.amazonaws.com";
     data["wifi"]["topic"] = "smartmeter/power";
     data["wifi"]["subtopic"] = "smartmeter/subpower";
-    data["wifi"]["port"] = 8883;
+    data["wifi"]["port"] = 8883;   // 1883
 
     // loramesh: é a comunicação DEFAULT_Coef, precisa configurar o loramesh na inicialização
     data["loramesh"]["status"] = true;
